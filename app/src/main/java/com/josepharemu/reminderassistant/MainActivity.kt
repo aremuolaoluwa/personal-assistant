@@ -15,6 +15,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -29,13 +33,35 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             PersonalReminderAssistantTheme {
+
+                var currentScreen by remember {
+                    mutableStateOf("home")
+                }
+
                 Scaffold(
                     modifier = Modifier.fillMaxSize()
                 ) { innerPadding ->
 
-                    HomeScreen(
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                    when (currentScreen) {
+
+                        "home" -> {
+                            HomeScreen(
+                                onAddReminder = {
+                                    currentScreen = "addReminder"
+                                },
+                                modifier = Modifier.padding(innerPadding)
+                            )
+                        }
+
+                        "addReminder" -> {
+                            AddReminderScreen(
+                                onBack = {
+                                    currentScreen = "home"
+                                },
+                                modifier = Modifier.padding(innerPadding)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -43,7 +69,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun HomeScreen(modifier: Modifier = Modifier) {
+fun HomeScreen(
+    onAddReminder: () -> Unit,
+    modifier: Modifier = Modifier
+) {
 
     Column(
         modifier = modifier
@@ -56,7 +85,9 @@ fun HomeScreen(modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.headlineMedium
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(
+            modifier = Modifier.height(32.dp)
+        )
 
         Text(
             text = "Today",
@@ -67,7 +98,9 @@ fun HomeScreen(modifier: Modifier = Modifier) {
             text = "No reminders for today"
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(
+            modifier = Modifier.height(24.dp)
+        )
 
         Text(
             text = "Important",
@@ -78,7 +111,9 @@ fun HomeScreen(modifier: Modifier = Modifier) {
             text = "Nothing important yet"
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(
+            modifier = Modifier.height(24.dp)
+        )
 
         Text(
             text = "Coming Up",
@@ -89,15 +124,17 @@ fun HomeScreen(modifier: Modifier = Modifier) {
             text = "No upcoming items"
         )
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(
+            modifier = Modifier.height(48.dp)
+        )
 
         Button(
-            onClick = {
-                // We will make this button work shortly.
-            },
+            onClick = onAddReminder,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(text = "+ Add Reminder")
+            Text(
+                text = "+ Add Reminder"
+            )
         }
     }
 }
@@ -107,6 +144,8 @@ fun HomeScreen(modifier: Modifier = Modifier) {
 fun HomeScreenPreview() {
 
     PersonalReminderAssistantTheme {
-        HomeScreen()
+        HomeScreen(
+            onAddReminder = {}
+        )
     }
 }
