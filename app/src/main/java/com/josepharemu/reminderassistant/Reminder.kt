@@ -33,18 +33,27 @@ data class Reminder(
     @ColumnInfo(defaultValue = "None")
     val repeatRule: String = "None",
 
-    /*
-     * Stores the original date used as the recurrence anchor.
-     *
-     * Examples:
-     * Monthly reminder beginning 31/01/2027:
-     * anchor remains 31/01/2027 even when February
-     * occurrence must temporarily be 28/02/2027.
-     *
-     * Yearly reminder beginning 29/02/2028:
-     * anchor preserves 29 February through
-     * non-leap years.
-     */
     @ColumnInfo(defaultValue = "None")
-    val repeatAnchorDate: String = "None"
+    val repeatAnchorDate: String = "None",
+
+    @ColumnInfo(defaultValue = "None")
+    val deadlineDate: String = "None",
+
+    @ColumnInfo(defaultValue = "None")
+    val deadlineTime: String = "None",
+
+    @ColumnInfo(defaultValue = "None")
+    val repeatUntilDate: String = "None",
+
+    @ColumnInfo(defaultValue = "0")
+    val followUpUntilCompleted: Boolean = false,
+
+    @ColumnInfo(defaultValue = "0")
+    val escalationEnabled: Boolean = false,
+
+    @ColumnInfo(defaultValue = "0")
+    val snoozeCount: Int = 0,
+
+    @ColumnInfo(defaultValue = "NULL")
+    val lastSnoozedAt: Long? = null
 )
