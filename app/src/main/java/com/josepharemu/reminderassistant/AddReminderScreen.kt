@@ -55,7 +55,8 @@ fun AddReminderScreen(
         ReminderDatabase.getDatabase(context)
     }
 
-    val coroutineScope = rememberCoroutineScope()
+    val coroutineScope =
+        rememberCoroutineScope()
 
     var title by remember {
         mutableStateOf("")
@@ -95,7 +96,8 @@ fun AddReminderScreen(
         )
     }
 
-    val calendar = Calendar.getInstance()
+    val calendar =
+        Calendar.getInstance()
 
     val notificationPermissionLauncher =
         rememberLauncherForActivityResult(
@@ -142,7 +144,8 @@ fun AddReminderScreen(
 
         Text(
             text = "Add Reminder",
-            style = MaterialTheme.typography.headlineMedium
+            style =
+                MaterialTheme.typography.headlineMedium
         )
 
         Spacer(
@@ -151,7 +154,8 @@ fun AddReminderScreen(
 
         Text(
             text = "Title",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
@@ -168,7 +172,8 @@ fun AddReminderScreen(
                     text = "What do you need to remember?"
                 )
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier =
+                Modifier.fillMaxWidth(),
             singleLine = true
         )
 
@@ -178,7 +183,8 @@ fun AddReminderScreen(
 
         Text(
             text = "Type",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
@@ -204,7 +210,8 @@ fun AddReminderScreen(
 
         Text(
             text = "Date",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
@@ -236,12 +243,15 @@ fun AddReminderScreen(
                     )
                 ).show()
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier =
+                Modifier.fillMaxWidth()
         ) {
 
             Text(
                 text =
-                    if (selectedDate.isBlank()) {
+                    if (
+                        selectedDate.isBlank()
+                    ) {
                         "Choose Date"
                     } else {
                         selectedDate
@@ -255,7 +265,8 @@ fun AddReminderScreen(
 
         Text(
             text = "Time",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
@@ -284,12 +295,15 @@ fun AddReminderScreen(
                     true
                 ).show()
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier =
+                Modifier.fillMaxWidth()
         ) {
 
             Text(
                 text =
-                    if (selectedTime.isBlank()) {
+                    if (
+                        selectedTime.isBlank()
+                    ) {
                         "Choose Time"
                     } else {
                         selectedTime
@@ -303,7 +317,8 @@ fun AddReminderScreen(
 
         Text(
             text = "Priority",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
@@ -328,7 +343,8 @@ fun AddReminderScreen(
 
         Text(
             text = "Category",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
@@ -359,7 +375,8 @@ fun AddReminderScreen(
 
         Text(
             text = "Repeat",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
@@ -367,7 +384,8 @@ fun AddReminderScreen(
         )
 
         SimpleDropdown(
-            selectedValue = selectedRepeatRule,
+            selectedValue =
+                selectedRepeatRule,
             options = listOf(
                 "None",
                 "Daily",
@@ -386,7 +404,8 @@ fun AddReminderScreen(
 
         Text(
             text = "Remind Me",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Text(
@@ -398,7 +417,8 @@ fun AddReminderScreen(
         )
 
         ReminderTimingSelector(
-            selectedTimings = selectedReminderTimings,
+            selectedTimings =
+                selectedReminderTimings,
             onSelectionChanged = {
                 selectedReminderTimings = it
             }
@@ -410,7 +430,8 @@ fun AddReminderScreen(
 
         Text(
             text = "Notes",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
@@ -482,11 +503,13 @@ fun AddReminderScreen(
                             ContextCompat.checkSelfPermission(
                                 context,
                                 Manifest.permission.POST_NOTIFICATIONS
-                            ) != PackageManager.PERMISSION_GRANTED -> {
+                            ) !=
+                            PackageManager.PERMISSION_GRANTED -> {
 
-                        notificationPermissionLauncher.launch(
-                            Manifest.permission.POST_NOTIFICATIONS
-                        )
+                        notificationPermissionLauncher
+                            .launch(
+                                Manifest.permission.POST_NOTIFICATIONS
+                            )
                     }
 
                     Build.VERSION.SDK_INT >=
@@ -521,6 +544,17 @@ fun AddReminderScreen(
 
                     else -> {
 
+                        val anchorDate =
+                            if (
+                                ReminderScheduler.isRecurring(
+                                    selectedRepeatRule
+                                )
+                            ) {
+                                selectedDate
+                            } else {
+                                "None"
+                            }
+
                         val reminder =
                             Reminder(
                                 title = title.trim(),
@@ -534,7 +568,10 @@ fun AddReminderScreen(
                                         selectedReminderTimings
                                     ),
                                 notes = notes.trim(),
-                                repeatRule = selectedRepeatRule
+                                repeatRule =
+                                    selectedRepeatRule,
+                                repeatAnchorDate =
+                                    anchorDate
                             )
 
                         coroutineScope.launch {
@@ -580,7 +617,8 @@ fun AddReminderScreen(
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier =
+                Modifier.fillMaxWidth()
         ) {
 
             Text(
@@ -606,14 +644,16 @@ fun SimpleDropdown(
     }
 
     Box(
-        modifier = Modifier.fillMaxWidth()
+        modifier =
+            Modifier.fillMaxWidth()
     ) {
 
         OutlinedButton(
             onClick = {
                 expanded = true
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier =
+                Modifier.fillMaxWidth()
         ) {
 
             Text(

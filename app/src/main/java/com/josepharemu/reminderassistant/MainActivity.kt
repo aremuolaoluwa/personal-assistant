@@ -45,6 +45,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
+
             PersonalReminderAssistantTheme {
 
                 var currentScreen by remember {
@@ -56,7 +57,8 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Scaffold(
-                    modifier = Modifier.fillMaxSize()
+                    modifier =
+                        Modifier.fillMaxSize()
                 ) { innerPadding ->
 
                     when (currentScreen) {
@@ -65,21 +67,29 @@ class MainActivity : ComponentActivity() {
 
                             HomeScreen(
                                 onAddReminder = {
-                                    currentScreen = "addReminder"
+                                    currentScreen =
+                                        "addReminder"
                                 },
 
                                 onOpenCompleted = {
-                                    currentScreen = "completed"
+                                    currentScreen =
+                                        "completed"
                                 },
 
-                                onEditReminder = { reminder ->
+                                onEditReminder = {
+                                        reminder ->
 
-                                    selectedReminder = reminder
+                                    selectedReminder =
+                                        reminder
 
-                                    currentScreen = "editReminder"
+                                    currentScreen =
+                                        "editReminder"
                                 },
 
-                                modifier = Modifier.padding(innerPadding)
+                                modifier =
+                                    Modifier.padding(
+                                        innerPadding
+                                    )
                             )
                         }
 
@@ -87,39 +97,55 @@ class MainActivity : ComponentActivity() {
 
                             AddReminderScreen(
                                 onBack = {
-                                    currentScreen = "home"
+                                    currentScreen =
+                                        "home"
                                 },
-                                modifier = Modifier.padding(innerPadding)
+
+                                modifier =
+                                    Modifier.padding(
+                                        innerPadding
+                                    )
                             )
                         }
 
                         "editReminder" -> {
 
-                            selectedReminder?.let { reminder ->
+                            selectedReminder
+                                ?.let { reminder ->
 
-                                EditReminderScreen(
-                                    reminder = reminder,
+                                    EditReminderScreen(
+                                        reminder =
+                                            reminder,
 
-                                    onBack = {
+                                        onBack = {
 
-                                        selectedReminder = null
+                                            selectedReminder =
+                                                null
 
-                                        currentScreen = "home"
-                                    },
+                                            currentScreen =
+                                                "home"
+                                        },
 
-                                    modifier =
-                                        Modifier.padding(innerPadding)
-                                )
-                            }
+                                        modifier =
+                                            Modifier.padding(
+                                                innerPadding
+                                            )
+                                    )
+                                }
                         }
 
                         "completed" -> {
 
                             CompletedScreen(
                                 onBack = {
-                                    currentScreen = "home"
+                                    currentScreen =
+                                        "home"
                                 },
-                                modifier = Modifier.padding(innerPadding)
+
+                                modifier =
+                                    Modifier.padding(
+                                        innerPadding
+                                    )
                             )
                         }
                     }
@@ -137,268 +163,441 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
 
-    val context = LocalContext.current
+    val context =
+        LocalContext.current
 
     val database = remember {
-        ReminderDatabase.getDatabase(context)
+        ReminderDatabase
+            .getDatabase(context)
     }
 
-    val coroutineScope = rememberCoroutineScope()
+    val coroutineScope =
+        rememberCoroutineScope()
 
     val reminders by database
         .reminderDao()
         .getActiveReminders()
-        .collectAsState(initial = emptyList())
+        .collectAsState(
+            initial = emptyList()
+        )
 
     val today =
         SimpleDateFormat(
             "dd/MM/yyyy",
             Locale.getDefault()
-        ).format(Date())
+        ).format(
+            Date()
+        )
 
-    val todayReminders = reminders.filter {
-        it.date == today
-    }
+    val todayReminders =
+        reminders.filter {
+            it.date == today
+        }
 
-    val importantReminders = reminders.filter {
-        it.date != today &&
-                (
-                        it.priority == "Important" ||
-                                it.priority == "Critical"
+    val importantReminders =
+        reminders.filter {
+
+            it.date != today &&
+                    (
+                            it.priority ==
+                                    "Important" ||
+                                    it.priority ==
+                                    "Critical"
+                            )
+        }
+
+    val upcomingReminders =
+        reminders.filter {
+
+            it.date != today &&
+                    it.priority ==
+                    "Normal"
+        }
+
+    fun handleDone(
+        reminder: Reminder
+    ) {
+
+        if (
+            ReminderScheduler.isRecurring(
+                reminder.repeatRule
+            )
+        ) {
+
+            coroutineScope.launch {
+
+                ReminderScheduler
+                    .cancelReminder(
+                        context,
+                        reminder.id
+                    )
+
+                val nextReminder =
+                    ReminderScheduler
+                        .getNextOccurrence(
+                            reminder
                         )
+
+                database
+                    .reminderDao()
+                    .updateReminderOccurrence(
+                        reminderId =
+                            reminder.id,
+
+                        newDate =
+                            nextReminder.date,
+
+                        anchorDate =
+                            nextReminder
+                                .repeatAnchorDate
+                    )
+
+                ReminderScheduler
+                    .scheduleReminder(
+                        context,
+                        nextReminder
+                    )
+            }
+
+        } else {
+
+            ReminderScheduler
+                .cancelReminder(
+                    context,
+                    reminder.id
+                )
+
+            coroutineScope.launch {
+
+                database
+                    .reminderDao()
+                    .updateReminder(
+                        reminder.copy(
+                            isCompleted = true
+                        )
+                    )
+            }
+        }
     }
 
-    val upcomingReminders = reminders.filter {
-        it.date != today &&
-                it.priority == "Normal"
+    fun handleDelete(
+        reminder: Reminder
+    ) {
+
+        ReminderScheduler
+            .cancelReminder(
+                context,
+                reminder.id
+            )
+
+        coroutineScope.launch {
+
+            database
+                .reminderDao()
+                .deleteReminder(
+                    reminder
+                )
+        }
+    }
+
+    fun handleEndRepeat(
+        reminder: Reminder
+    ) {
+
+        coroutineScope.launch {
+
+            ReminderScheduler
+                .cancelReminder(
+                    context,
+                    reminder.id
+                )
+
+            val oneOffReminder =
+                reminder.copy(
+                    repeatRule = "None",
+                    repeatAnchorDate = "None"
+                )
+
+            database
+                .reminderDao()
+                .updateReminder(
+                    oneOffReminder
+                )
+
+            /*
+             * If the current date/time is still
+             * in the future, it remains as one
+             * final one-off reminder.
+             */
+            ReminderScheduler
+                .scheduleReminder(
+                    context,
+                    oneOffReminder
+                )
+        }
     }
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(
+                rememberScrollState()
+            )
             .padding(24.dp)
     ) {
 
         Text(
-            text = "Personal Reminder Assistant",
-            style = MaterialTheme.typography.headlineMedium
+            text =
+                "Personal Reminder Assistant",
+            style =
+                MaterialTheme
+                    .typography
+                    .headlineMedium
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(
+            modifier =
+                Modifier.height(32.dp)
+        )
 
         Text(
             text = "Today",
-            style = MaterialTheme.typography.titleLarge
+            style =
+                MaterialTheme
+                    .typography
+                    .titleLarge
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(
+            modifier =
+                Modifier.height(8.dp)
+        )
 
-        if (todayReminders.isEmpty()) {
+        if (
+            todayReminders.isEmpty()
+        ) {
 
             Text(
-                text = "No reminders for today"
+                text =
+                    "No reminders for today"
             )
 
         } else {
 
-            todayReminders.forEach { reminder ->
+            todayReminders
+                .forEach { reminder ->
 
-                ReminderCard(
-                    reminder = reminder,
+                    ReminderCard(
+                        reminder =
+                            reminder,
 
-                    onEdit = {
-                        onEditReminder(reminder)
-                    },
+                        onEdit = {
+                            onEditReminder(
+                                reminder
+                            )
+                        },
 
-                    onDone = {
+                        onDone = {
+                            handleDone(
+                                reminder
+                            )
+                        },
 
-                        ReminderScheduler.cancelReminder(
-                            context,
-                            reminder.id
-                        )
+                        onDelete = {
+                            handleDelete(
+                                reminder
+                            )
+                        },
 
-                        coroutineScope.launch {
-
-                            database
-                                .reminderDao()
-                                .updateReminder(
-                                    reminder.copy(
-                                        isCompleted = true
-                                    )
-                                )
+                        onEndRepeat = {
+                            handleEndRepeat(
+                                reminder
+                            )
                         }
-                    },
+                    )
 
-                    onDelete = {
-
-                        ReminderScheduler.cancelReminder(
-                            context,
-                            reminder.id
-                        )
-
-                        coroutineScope.launch {
-
-                            database
-                                .reminderDao()
-                                .deleteReminder(reminder)
-                        }
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-            }
+                    Spacer(
+                        modifier =
+                            Modifier.height(8.dp)
+                    )
+                }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(
+            modifier =
+                Modifier.height(24.dp)
+        )
 
         Text(
             text = "Important",
-            style = MaterialTheme.typography.titleLarge
+            style =
+                MaterialTheme
+                    .typography
+                    .titleLarge
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(
+            modifier =
+                Modifier.height(8.dp)
+        )
 
-        if (importantReminders.isEmpty()) {
+        if (
+            importantReminders.isEmpty()
+        ) {
 
             Text(
-                text = "Nothing important yet"
+                text =
+                    "Nothing important yet"
             )
 
         } else {
 
-            importantReminders.forEach { reminder ->
+            importantReminders
+                .forEach { reminder ->
 
-                ReminderCard(
-                    reminder = reminder,
+                    ReminderCard(
+                        reminder =
+                            reminder,
 
-                    onEdit = {
-                        onEditReminder(reminder)
-                    },
+                        onEdit = {
+                            onEditReminder(
+                                reminder
+                            )
+                        },
 
-                    onDone = {
+                        onDone = {
+                            handleDone(
+                                reminder
+                            )
+                        },
 
-                        ReminderScheduler.cancelReminder(
-                            context,
-                            reminder.id
-                        )
+                        onDelete = {
+                            handleDelete(
+                                reminder
+                            )
+                        },
 
-                        coroutineScope.launch {
-
-                            database
-                                .reminderDao()
-                                .updateReminder(
-                                    reminder.copy(
-                                        isCompleted = true
-                                    )
-                                )
+                        onEndRepeat = {
+                            handleEndRepeat(
+                                reminder
+                            )
                         }
-                    },
+                    )
 
-                    onDelete = {
-
-                        ReminderScheduler.cancelReminder(
-                            context,
-                            reminder.id
-                        )
-
-                        coroutineScope.launch {
-
-                            database
-                                .reminderDao()
-                                .deleteReminder(reminder)
-                        }
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-            }
+                    Spacer(
+                        modifier =
+                            Modifier.height(8.dp)
+                    )
+                }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(
+            modifier =
+                Modifier.height(24.dp)
+        )
 
         Text(
             text = "Coming Up",
-            style = MaterialTheme.typography.titleLarge
+            style =
+                MaterialTheme
+                    .typography
+                    .titleLarge
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(
+            modifier =
+                Modifier.height(8.dp)
+        )
 
-        if (upcomingReminders.isEmpty()) {
+        if (
+            upcomingReminders.isEmpty()
+        ) {
 
             Text(
-                text = "No upcoming items"
+                text =
+                    "No upcoming items"
             )
 
         } else {
 
-            upcomingReminders.forEach { reminder ->
+            upcomingReminders
+                .forEach { reminder ->
 
-                ReminderCard(
-                    reminder = reminder,
+                    ReminderCard(
+                        reminder =
+                            reminder,
 
-                    onEdit = {
-                        onEditReminder(reminder)
-                    },
+                        onEdit = {
+                            onEditReminder(
+                                reminder
+                            )
+                        },
 
-                    onDone = {
+                        onDone = {
+                            handleDone(
+                                reminder
+                            )
+                        },
 
-                        ReminderScheduler.cancelReminder(
-                            context,
-                            reminder.id
-                        )
+                        onDelete = {
+                            handleDelete(
+                                reminder
+                            )
+                        },
 
-                        coroutineScope.launch {
-
-                            database
-                                .reminderDao()
-                                .updateReminder(
-                                    reminder.copy(
-                                        isCompleted = true
-                                    )
-                                )
+                        onEndRepeat = {
+                            handleEndRepeat(
+                                reminder
+                            )
                         }
-                    },
+                    )
 
-                    onDelete = {
-
-                        ReminderScheduler.cancelReminder(
-                            context,
-                            reminder.id
-                        )
-
-                        coroutineScope.launch {
-
-                            database
-                                .reminderDao()
-                                .deleteReminder(reminder)
-                        }
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-            }
+                    Spacer(
+                        modifier =
+                            Modifier.height(8.dp)
+                    )
+                }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(
+            modifier =
+                Modifier.height(32.dp)
+        )
 
         Button(
-            onClick = onAddReminder,
-            modifier = Modifier.fillMaxWidth()
+            onClick =
+                onAddReminder,
+            modifier =
+                Modifier.fillMaxWidth()
         ) {
-            Text(text = "+ Add Reminder")
+
+            Text(
+                text =
+                    "+ Add Reminder"
+            )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(
+            modifier =
+                Modifier.height(12.dp)
+        )
 
         OutlinedButton(
-            onClick = onOpenCompleted,
-            modifier = Modifier.fillMaxWidth()
+            onClick =
+                onOpenCompleted,
+            modifier =
+                Modifier.fillMaxWidth()
         ) {
-            Text(text = "Completed")
+
+            Text(
+                text = "Completed"
+            )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(
+            modifier =
+                Modifier.height(24.dp)
+        )
     }
 }
 
@@ -407,88 +606,182 @@ fun ReminderCard(
     reminder: Reminder,
     onEdit: () -> Unit,
     onDone: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onEndRepeat: () -> Unit
 ) {
 
+    val recurring =
+        ReminderScheduler.isRecurring(
+            reminder.repeatRule
+        )
+
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier =
+            Modifier.fillMaxWidth()
     ) {
 
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier =
+                Modifier.padding(16.dp)
         ) {
 
             Text(
-                text = reminder.title,
-                style = MaterialTheme.typography.titleMedium
+                text =
+                    reminder.title,
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleMedium
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(
+                modifier =
+                    Modifier.height(4.dp)
+            )
 
             Text(
-                text = "${reminder.type} • ${reminder.priority}"
+                text =
+                    "${reminder.type} • ${reminder.priority}"
             )
 
             Text(
-                text = if (reminder.time.isBlank()) {
-                    reminder.date
-                } else {
-                    "${reminder.date} at ${reminder.time}"
-                }
+                text =
+                    if (
+                        reminder.time.isBlank()
+                    ) {
+
+                        reminder.date
+
+                    } else {
+
+                        "${reminder.date} at ${reminder.time}"
+                    }
             )
 
-            if (reminder.category.isNotBlank()) {
+            if (
+                recurring
+            ) {
 
                 Text(
-                    text = "Category: ${reminder.category}"
+                    text =
+                        "Repeats: ${reminder.repeatRule}"
                 )
             }
 
-            if (reminder.notes.isNotBlank()) {
-
-                Spacer(modifier = Modifier.height(6.dp))
+            if (
+                reminder.category
+                    .isNotBlank()
+            ) {
 
                 Text(
-                    text = reminder.notes
+                    text =
+                        "Category: ${reminder.category}"
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            if (
+                reminder.notes
+                    .isNotBlank()
+            ) {
+
+                Spacer(
+                    modifier =
+                        Modifier.height(6.dp)
+                )
+
+                Text(
+                    text =
+                        reminder.notes
+                )
+            }
+
+            Spacer(
+                modifier =
+                    Modifier.height(16.dp)
+            )
 
             OutlinedButton(
-                onClick = onEdit,
-                modifier = Modifier.fillMaxWidth()
+                onClick =
+                    onEdit,
+                modifier =
+                    Modifier.fillMaxWidth()
             ) {
-                Text(text = "Edit")
+
+                Text(
+                    text = "Edit"
+                )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(
+                modifier =
+                    Modifier.height(8.dp)
+            )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier =
+                    Modifier.fillMaxWidth(),
                 horizontalArrangement =
-                    Arrangement.spacedBy(12.dp)
+                    Arrangement.spacedBy(
+                        12.dp
+                    )
             ) {
 
                 Button(
-                    onClick = onDone,
-                    modifier = Modifier.weight(1f)
+                    onClick =
+                        onDone,
+                    modifier =
+                        Modifier.weight(1f)
                 ) {
-                    Text(text = "Done")
+
+                    Text(
+                        text =
+                            if (recurring) {
+                                "Done for today"
+                            } else {
+                                "Done"
+                            }
+                    )
                 }
 
                 OutlinedButton(
-                    onClick = onDelete,
-                    modifier = Modifier.weight(1f)
+                    onClick =
+                        onDelete,
+                    modifier =
+                        Modifier.weight(1f)
                 ) {
-                    Text(text = "Delete")
+
+                    Text(
+                        text = "Delete"
+                    )
+                }
+            }
+
+            if (recurring) {
+
+                Spacer(
+                    modifier =
+                        Modifier.height(8.dp)
+                )
+
+                OutlinedButton(
+                    onClick =
+                        onEndRepeat,
+                    modifier =
+                        Modifier.fillMaxWidth()
+                ) {
+
+                    Text(
+                        text = "End Repeat"
+                    )
                 }
             }
         }
     }
 }
 
-@Preview(showBackground = true)
+@Preview(
+    showBackground = true
+)
 @Composable
 fun HomeScreenPreview() {
 

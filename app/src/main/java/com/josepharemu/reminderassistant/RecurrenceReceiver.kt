@@ -55,51 +55,31 @@ class RecurrenceReceiver : BroadcastReceiver() {
                 if (
                     currentReminder == null ||
                     currentReminder.isCompleted ||
-                    currentReminder.repeatRule ==
-                    "None"
+                    !ReminderScheduler.isRecurring(
+                        currentReminder.repeatRule
+                    )
                 ) {
 
                     return@launch
                 }
 
-                /*
-                 * Move the date to the next valid
-                 * future occurrence.
-                 */
-                val futureReminder =
+                val nextReminder =
                     ReminderScheduler
-                        .moveRecurringReminderToFuture(
+                        .getNextOccurrence(
                             currentReminder
                         )
 
-                if (
-                    futureReminder.date !=
-                    currentReminder.date
-                ) {
+                dao.updateReminderOccurrence(
+                    reminderId =
+                        reminderId,
 
-                    /*
-                     * Only update the date.
-                     *
-                     * This avoids accidentally
-                     * overwriting another change,
-                     * such as the user pressing Done.
-                     */
-                    dao.updateReminderDate(
-                        reminderId =
-                            reminderId,
+                    newDate =
+                        nextReminder.date,
 
-                        newDate =
-                            futureReminder.date
-                    )
-                }
+                    anchorDate =
+                        nextReminder.repeatAnchorDate
+                )
 
-                /*
-                 * Reload the reminder before scheduling.
-                 *
-                 * If the user pressed Done while this
-                 * receiver was working, we do not want
-                 * to start another recurring alarm.
-                 */
                 val latestReminder =
                     dao.getReminderById(
                         reminderId
@@ -108,8 +88,9 @@ class RecurrenceReceiver : BroadcastReceiver() {
                 if (
                     latestReminder != null &&
                     !latestReminder.isCompleted &&
-                    latestReminder.repeatRule !=
-                    "None"
+                    ReminderScheduler.isRecurring(
+                        latestReminder.repeatRule
+                    )
                 ) {
 
                     ReminderScheduler

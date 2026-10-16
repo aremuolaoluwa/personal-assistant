@@ -61,15 +61,8 @@ class BootReceiver : BroadcastReceiver() {
                     "Found ${activeReminders.size} active reminders"
                 )
 
-                activeReminders.forEach {
-                        reminder ->
+                activeReminders.forEach { reminder ->
 
-                    /*
-                     * If a recurring reminder became
-                     * overdue while the phone was off,
-                     * move it to its next valid future
-                     * occurrence first.
-                     */
                     val reminderToSchedule =
                         ReminderScheduler
                             .moveRecurringReminderToFuture(
@@ -78,15 +71,20 @@ class BootReceiver : BroadcastReceiver() {
 
                     if (
                         reminderToSchedule.date !=
-                        reminder.date
+                        reminder.date ||
+                        reminderToSchedule.repeatAnchorDate !=
+                        reminder.repeatAnchorDate
                     ) {
 
-                        dao.updateReminderDate(
+                        dao.updateReminderOccurrence(
                             reminderId =
                                 reminder.id,
 
                             newDate =
-                                reminderToSchedule.date
+                                reminderToSchedule.date,
+
+                            anchorDate =
+                                reminderToSchedule.repeatAnchorDate
                         )
                     }
 

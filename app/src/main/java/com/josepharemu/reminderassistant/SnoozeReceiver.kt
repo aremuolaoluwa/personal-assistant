@@ -37,10 +37,16 @@ class SnoozeReceiver : BroadcastReceiver() {
                 "REMINDER_MESSAGE"
             ) ?: "You have something to remember."
 
-        /*
-         * Remove the notification that
-         * is currently visible.
-         */
+        val repeatRule =
+            intent.getStringExtra(
+                "REMINDER_REPEAT_RULE"
+            ) ?: "None"
+
+        val occurrenceDate =
+            intent.getStringExtra(
+                "OCCURRENCE_DATE"
+            )
+
         val notificationManager =
             context.getSystemService(
                 Context.NOTIFICATION_SERVICE
@@ -50,11 +56,6 @@ class SnoozeReceiver : BroadcastReceiver() {
             notificationId
         )
 
-        /*
-         * The snooze alarm gets a different
-         * PendingIntent request code from the
-         * normal recurring alarm.
-         */
         val snoozeAlarmRequestCode =
             ReminderScheduler
                 .createSnoozeAlarmRequestCode(
@@ -72,10 +73,6 @@ class SnoozeReceiver : BroadcastReceiver() {
                     reminderId
                 )
 
-                /*
-                 * The notification itself keeps
-                 * the original notification ID.
-                 */
                 putExtra(
                     "NOTIFICATION_ID",
                     notificationId
@@ -89,6 +86,16 @@ class SnoozeReceiver : BroadcastReceiver() {
                 putExtra(
                     "REMINDER_MESSAGE",
                     "Snoozed reminder • $message"
+                )
+
+                putExtra(
+                    "REMINDER_REPEAT_RULE",
+                    repeatRule
+                )
+
+                putExtra(
+                    "OCCURRENCE_DATE",
+                    occurrenceDate
                 )
             }
 
@@ -116,35 +123,31 @@ class SnoozeReceiver : BroadcastReceiver() {
         ) {
 
             if (
-                alarmManager
-                    .canScheduleExactAlarms()
+                alarmManager.canScheduleExactAlarms()
             ) {
 
-                alarmManager
-                    .setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerTime,
-                        pendingIntent
-                    )
-
-            } else {
-
-                alarmManager
-                    .setAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerTime,
-                        pendingIntent
-                    )
-            }
-
-        } else {
-
-            alarmManager
-                .setExactAndAllowWhileIdle(
+                alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     triggerTime,
                     pendingIntent
                 )
+
+            } else {
+
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerTime,
+                    pendingIntent
+                )
+            }
+
+        } else {
+
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerTime,
+                pendingIntent
+            )
         }
     }
 }

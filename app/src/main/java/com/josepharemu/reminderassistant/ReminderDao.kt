@@ -34,9 +34,17 @@ interface ReminderDao {
     @Query("UPDATE reminders SET isCompleted = 1 WHERE id = :reminderId")
     suspend fun markReminderCompleted(reminderId: Int)
 
-    @Query("UPDATE reminders SET date = :newDate WHERE id = :reminderId")
-    suspend fun updateReminderDate(
+    @Query(
+        """
+        UPDATE reminders
+        SET date = :newDate,
+            repeatAnchorDate = :anchorDate
+        WHERE id = :reminderId
+        """
+    )
+    suspend fun updateReminderOccurrence(
         reminderId: Int,
-        newDate: String
+        newDate: String,
+        anchorDate: String
     )
 }

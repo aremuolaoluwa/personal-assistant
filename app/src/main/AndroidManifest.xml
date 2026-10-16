@@ -51,6 +51,11 @@
             android:exported="false" />
 
         <receiver
+            android:name=".DoneForTodayReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
             android:name=".SnoozeReceiver"
             android:enabled="true"
             android:exported="false" />

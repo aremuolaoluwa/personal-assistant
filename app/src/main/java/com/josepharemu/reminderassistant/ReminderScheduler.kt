@@ -9,6 +9,7 @@ import android.os.Build
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -51,8 +52,7 @@ object ReminderScheduler {
                 reminder.reminderTiming
             )
 
-        var scheduledAtLeastOneNotification =
-            false
+        var scheduledAtLeastOneNotification = false
 
         selectedTimings.forEach { timing ->
 
@@ -82,23 +82,11 @@ object ReminderScheduler {
                     triggerTime = triggerTime
                 )
 
-                scheduledAtLeastOneNotification =
-                    true
+                scheduledAtLeastOneNotification = true
             }
         }
 
-        /*
-         * Recurring reminders need a separate
-         * internal alarm at the actual event time.
-         *
-         * This alarm does not show a notification.
-         * It moves the reminder to its next date.
-         */
-        if (
-            isRecurring(
-                reminder.repeatRule
-            )
-        ) {
+        if (isRecurring(reminder.repeatRule)) {
 
             val eventTriggerTime =
                 eventDateTime
@@ -116,8 +104,7 @@ object ReminderScheduler {
                 scheduleRecurrenceAlarm(
                     context = context,
                     reminder = reminder,
-                    triggerTime =
-                        eventTriggerTime
+                    triggerTime = eventTriggerTime
                 )
             }
         }
@@ -173,6 +160,16 @@ object ReminderScheduler {
                 putExtra(
                     "REMINDER_MESSAGE",
                     message
+                )
+
+                putExtra(
+                    "REMINDER_REPEAT_RULE",
+                    reminder.repeatRule
+                )
+
+                putExtra(
+                    "OCCURRENCE_DATE",
+                    reminder.date
                 )
             }
 
@@ -248,35 +245,31 @@ object ReminderScheduler {
         ) {
 
             if (
-                alarmManager
-                    .canScheduleExactAlarms()
+                alarmManager.canScheduleExactAlarms()
             ) {
 
-                alarmManager
-                    .setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerTime,
-                        pendingIntent
-                    )
-
-            } else {
-
-                alarmManager
-                    .setAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerTime,
-                        pendingIntent
-                    )
-            }
-
-        } else {
-
-            alarmManager
-                .setExactAndAllowWhileIdle(
+                alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     triggerTime,
                     pendingIntent
                 )
+
+            } else {
+
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerTime,
+                    pendingIntent
+                )
+            }
+
+        } else {
+
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerTime,
+                pendingIntent
+            )
         }
     }
 
@@ -314,30 +307,131 @@ object ReminderScheduler {
     }
 
     /*
-     * Used by the reboot receiver and recurrence receiver.
+     * Returns exactly one next occurrence.
      *
-     * If a recurring reminder is now in the past,
-     * this moves it forward until its event time
-     * is in the future.
+     * This is used by "Done for today" and by
+     * the automatic recurrence receiver.
+     */
+    fun getNextOccurrence(
+        reminder: Reminder
+    ): Reminder {
+
+        if (!isRecurring(reminder.repeatRule)) {
+            return reminder
+        }
+
+        val currentDate =
+            parseDate(reminder.date)
+                ?: return reminder
+
+        val anchorDate =
+            resolveAnchorDate(reminder)
+                ?: currentDate
+
+        val nextDate =
+            when (reminder.repeatRule) {
+
+                "Daily" -> {
+                    currentDate.plusDays(1)
+                }
+
+                "Weekly" -> {
+                    currentDate.plusWeeks(1)
+                }
+
+                "Monthly" -> {
+
+                    val nextMonth =
+                        YearMonth
+                            .from(currentDate)
+                            .plusMonths(1)
+
+                    val desiredDay =
+                        anchorDate.dayOfMonth
+
+                    val actualDay =
+                        minOf(
+                            desiredDay,
+                            nextMonth.lengthOfMonth()
+                        )
+
+                    LocalDate.of(
+                        nextMonth.year,
+                        nextMonth.monthValue,
+                        actualDay
+                    )
+                }
+
+                "Yearly" -> {
+
+                    val nextYear =
+                        currentDate.year + 1
+
+                    val anchorMonth =
+                        anchorDate.monthValue
+
+                    val targetMonth =
+                        YearMonth.of(
+                            nextYear,
+                            anchorMonth
+                        )
+
+                    val desiredDay =
+                        anchorDate.dayOfMonth
+
+                    val actualDay =
+                        minOf(
+                            desiredDay,
+                            targetMonth.lengthOfMonth()
+                        )
+
+                    LocalDate.of(
+                        nextYear,
+                        anchorMonth,
+                        actualDay
+                    )
+                }
+
+                else -> {
+                    currentDate
+                }
+            }
+
+        return reminder.copy(
+            date =
+                nextDate.format(
+                    dateFormatter
+                ),
+
+            repeatAnchorDate =
+                anchorDate.format(
+                    dateFormatter
+                )
+        )
+    }
+
+    /*
+     * Used after a phone restart.
+     *
+     * If several occurrences were missed while
+     * the phone was off, keep advancing until
+     * the next event is genuinely in the future.
      */
     fun moveRecurringReminderToFuture(
         reminder: Reminder
     ): Reminder {
 
-        if (
-            !isRecurring(
-                reminder.repeatRule
-            )
-        ) {
+        if (!isRecurring(reminder.repeatRule)) {
             return reminder
         }
 
-        val originalDateTime =
-            parseEventDateTime(reminder)
-                ?: return reminder
+        var workingReminder =
+            ensureAnchorDate(reminder)
 
-        var nextDateTime =
-            originalDateTime
+        var eventDateTime =
+            parseEventDateTime(
+                workingReminder
+            ) ?: return workingReminder
 
         val now =
             LocalDateTime.now()
@@ -345,57 +439,98 @@ object ReminderScheduler {
         var safetyCounter = 0
 
         while (
-            !nextDateTime.isAfter(now) &&
+            !eventDateTime.isAfter(now) &&
             safetyCounter < 10000
         ) {
 
-            nextDateTime =
-                advanceOccurrence(
-                    nextDateTime,
-                    reminder.repeatRule
+            val nextReminder =
+                getNextOccurrence(
+                    workingReminder
                 )
+
+            if (
+                nextReminder.date ==
+                workingReminder.date
+            ) {
+                break
+            }
+
+            workingReminder =
+                nextReminder
+
+            eventDateTime =
+                parseEventDateTime(
+                    workingReminder
+                ) ?: break
 
             safetyCounter++
         }
 
+        return workingReminder
+    }
+
+    private fun ensureAnchorDate(
+        reminder: Reminder
+    ): Reminder {
+
+        if (!isRecurring(reminder.repeatRule)) {
+            return reminder
+        }
+
         if (
-            nextDateTime ==
-            originalDateTime
+            reminder.repeatAnchorDate != "None" &&
+            parseDate(
+                reminder.repeatAnchorDate
+            ) != null
         ) {
             return reminder
         }
 
         return reminder.copy(
-            date =
-                nextDateTime
-                    .toLocalDate()
-                    .format(
-                        dateFormatter
-                    )
+            repeatAnchorDate =
+                reminder.date
         )
     }
 
-    private fun advanceOccurrence(
-        dateTime: LocalDateTime,
-        repeatRule: String
-    ): LocalDateTime {
+    private fun resolveAnchorDate(
+        reminder: Reminder
+    ): LocalDate? {
 
-        return when (repeatRule) {
+        if (
+            reminder.repeatAnchorDate != "None"
+        ) {
 
-            "Daily" ->
-                dateTime.plusDays(1)
+            val storedAnchor =
+                parseDate(
+                    reminder.repeatAnchorDate
+                )
 
-            "Weekly" ->
-                dateTime.plusWeeks(1)
+            if (storedAnchor != null) {
+                return storedAnchor
+            }
+        }
 
-            "Monthly" ->
-                dateTime.plusMonths(1)
+        return parseDate(
+            reminder.date
+        )
+    }
 
-            "Yearly" ->
-                dateTime.plusYears(1)
+    private fun parseDate(
+        value: String
+    ): LocalDate? {
 
-            else ->
-                dateTime
+        return try {
+
+            LocalDate.parse(
+                value,
+                dateFormatter
+            )
+
+        } catch (
+            exception: Exception
+        ) {
+
+            null
         }
     }
 
@@ -430,7 +565,7 @@ object ReminderScheduler {
         }
     }
 
-    private fun isRecurring(
+    fun isRecurring(
         repeatRule: String
     ): Boolean {
 
@@ -459,10 +594,6 @@ object ReminderScheduler {
                 Context.NOTIFICATION_SERVICE
             ) as NotificationManager
 
-        /*
-         * Cancel all normal reminder alarms,
-         * snoozed alarms and visible notifications.
-         */
         timingCodes.forEach { (timing, _) ->
 
             val alarmId =
@@ -497,11 +628,6 @@ object ReminderScheduler {
                 normalPendingIntent.cancel()
             }
 
-            /*
-             * Snooze now uses a different request
-             * code so it cannot overwrite a future
-             * recurring notification.
-             */
             val snoozeAlarmId =
                 createSnoozeAlarmRequestCode(
                     alarmId
@@ -538,9 +664,6 @@ object ReminderScheduler {
             )
         }
 
-        /*
-         * Cancel the recurrence alarm itself.
-         */
         val recurrenceIntent =
             Intent(
                 context,
@@ -569,10 +692,6 @@ object ReminderScheduler {
             recurrencePendingIntent.cancel()
         }
 
-        /*
-         * Compatibility with reminders created
-         * before multiple notification support.
-         */
         val legacyIntent =
             Intent(
                 context,

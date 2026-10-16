@@ -36,10 +36,13 @@ fun EditReminderScreen(
     modifier: Modifier = Modifier
 ) {
 
-    val context = LocalContext.current
+    val context =
+        LocalContext.current
 
     val database = remember {
-        ReminderDatabase.getDatabase(context)
+        ReminderDatabase.getDatabase(
+            context
+        )
     }
 
     val coroutineScope =
@@ -103,7 +106,8 @@ fun EditReminderScreen(
                 )
             }
 
-    val calendar = Calendar.getInstance()
+    val calendar =
+        Calendar.getInstance()
 
     Column(
         modifier = modifier
@@ -121,25 +125,30 @@ fun EditReminderScreen(
         }
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         Text(
             text = "Edit Reminder",
-            style = MaterialTheme.typography.headlineMedium
+            style =
+                MaterialTheme.typography.headlineMedium
         )
 
         Spacer(
-            modifier = Modifier.height(24.dp)
+            modifier =
+                Modifier.height(24.dp)
         )
 
         Text(
             text = "Title",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         OutlinedTextField(
@@ -147,25 +156,30 @@ fun EditReminderScreen(
             onValueChange = {
                 title = it
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier =
+                Modifier.fillMaxWidth(),
             singleLine = true
         )
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(20.dp)
         )
 
         Text(
             text = "Type",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         SimpleDropdown(
-            selectedValue = selectedType,
+            selectedValue =
+                selectedType,
             options = listOf(
                 "Event",
                 "Deadline",
@@ -178,16 +192,19 @@ fun EditReminderScreen(
         )
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(20.dp)
         )
 
         Text(
             text = "Date",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         OutlinedButton(
@@ -215,7 +232,8 @@ fun EditReminderScreen(
                     )
                 ).show()
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier =
+                Modifier.fillMaxWidth()
         ) {
 
             Text(
@@ -224,16 +242,19 @@ fun EditReminderScreen(
         }
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(20.dp)
         )
 
         Text(
             text = "Time",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         OutlinedButton(
@@ -258,12 +279,15 @@ fun EditReminderScreen(
                     true
                 ).show()
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier =
+                Modifier.fillMaxWidth()
         ) {
 
             Text(
                 text =
-                    if (selectedTime.isBlank()) {
+                    if (
+                        selectedTime.isBlank()
+                    ) {
                         "Choose Time"
                     } else {
                         selectedTime
@@ -272,20 +296,24 @@ fun EditReminderScreen(
         }
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(20.dp)
         )
 
         Text(
             text = "Priority",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         SimpleDropdown(
-            selectedValue = selectedPriority,
+            selectedValue =
+                selectedPriority,
             options = listOf(
                 "Normal",
                 "Important",
@@ -297,20 +325,24 @@ fun EditReminderScreen(
         )
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(20.dp)
         )
 
         Text(
             text = "Category",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         SimpleDropdown(
-            selectedValue = selectedCategory,
+            selectedValue =
+                selectedCategory,
             options = listOf(
                 "Personal",
                 "Work",
@@ -328,20 +360,24 @@ fun EditReminderScreen(
         )
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(20.dp)
         )
 
         Text(
             text = "Repeat",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         SimpleDropdown(
-            selectedValue = selectedRepeatRule,
+            selectedValue =
+                selectedRepeatRule,
             options = listOf(
                 "None",
                 "Daily",
@@ -355,20 +391,24 @@ fun EditReminderScreen(
         )
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(20.dp)
         )
 
         Text(
             text = "Remind Me",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Text(
-            text = "You can select more than one."
+            text =
+                "You can select more than one."
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         ReminderTimingSelector(
@@ -380,16 +420,19 @@ fun EditReminderScreen(
         )
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(20.dp)
         )
 
         Text(
             text = "Notes",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme.typography.titleMedium
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         OutlinedTextField(
@@ -403,7 +446,8 @@ fun EditReminderScreen(
         )
 
         Spacer(
-            modifier = Modifier.height(32.dp)
+            modifier =
+                Modifier.height(32.dp)
         )
 
         Button(
@@ -438,7 +482,8 @@ fun EditReminderScreen(
                         ).show()
                     }
 
-                    selectedReminderTimings.isEmpty() -> {
+                    selectedReminderTimings
+                        .isEmpty() -> {
 
                         Toast.makeText(
                             context,
@@ -449,47 +494,89 @@ fun EditReminderScreen(
 
                     else -> {
 
+                        val updatedAnchorDate =
+                            when {
+
+                                !ReminderScheduler
+                                    .isRecurring(
+                                        selectedRepeatRule
+                                    ) -> {
+
+                                    "None"
+                                }
+
+                                !ReminderScheduler
+                                    .isRecurring(
+                                        reminder.repeatRule
+                                    ) -> {
+
+                                    selectedDate
+                                }
+
+                                selectedDate !=
+                                        reminder.date -> {
+
+                                    selectedDate
+                                }
+
+                                selectedRepeatRule !=
+                                        reminder.repeatRule -> {
+
+                                    selectedDate
+                                }
+
+                                reminder.repeatAnchorDate !=
+                                        "None" -> {
+
+                                    reminder.repeatAnchorDate
+                                }
+
+                                else -> {
+
+                                    selectedDate
+                                }
+                            }
+
                         val updatedReminder =
                             reminder.copy(
-                                title = title.trim(),
-                                type = selectedType,
-                                date = selectedDate,
-                                time = selectedTime,
-                                priority = selectedPriority,
-                                category = selectedCategory,
+                                title =
+                                    title.trim(),
+                                type =
+                                    selectedType,
+                                date =
+                                    selectedDate,
+                                time =
+                                    selectedTime,
+                                priority =
+                                    selectedPriority,
+                                category =
+                                    selectedCategory,
                                 reminderTiming =
                                     serializeReminderTimings(
                                         selectedReminderTimings
                                     ),
-                                notes = notes.trim(),
-                                repeatRule = selectedRepeatRule
+                                notes =
+                                    notes.trim(),
+                                repeatRule =
+                                    selectedRepeatRule,
+                                repeatAnchorDate =
+                                    updatedAnchorDate
                             )
 
                         coroutineScope.launch {
 
-                            /*
-                             * Cancel every alarm belonging
-                             * to the old version first.
-                             */
                             ReminderScheduler
                                 .cancelReminder(
                                     context,
                                     reminder.id
                                 )
 
-                            /*
-                             * Save the edited reminder.
-                             */
                             database
                                 .reminderDao()
                                 .updateReminder(
                                     updatedReminder
                                 )
 
-                            /*
-                             * Schedule all selected
-                             * reminder times again.
-                             */
                             val scheduled =
                                 ReminderScheduler
                                     .scheduleReminder(
@@ -519,7 +606,8 @@ fun EditReminderScreen(
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier =
+                Modifier.fillMaxWidth()
         ) {
 
             Text(
@@ -528,7 +616,8 @@ fun EditReminderScreen(
         }
 
         Spacer(
-            modifier = Modifier.height(24.dp)
+            modifier =
+                Modifier.height(24.dp)
         )
     }
 }

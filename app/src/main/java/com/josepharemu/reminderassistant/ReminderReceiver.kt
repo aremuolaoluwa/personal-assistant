@@ -41,6 +41,21 @@ class ReminderReceiver : BroadcastReceiver() {
                 "REMINDER_MESSAGE"
             ) ?: "You have something to remember."
 
+        val repeatRule =
+            intent.getStringExtra(
+                "REMINDER_REPEAT_RULE"
+            ) ?: "None"
+
+        val occurrenceDate =
+            intent.getStringExtra(
+                "OCCURRENCE_DATE"
+            )
+
+        val recurring =
+            ReminderScheduler.isRecurring(
+                repeatRule
+            )
+
         createNotificationChannel(
             context
         )
@@ -53,14 +68,9 @@ class ReminderReceiver : BroadcastReceiver() {
                 Manifest.permission.POST_NOTIFICATIONS
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-
             return
         }
 
-        /*
-         * Tap the notification itself
-         * to open the app.
-         */
         val openAppIntent =
             Intent(
                 context,
@@ -81,19 +91,37 @@ class ReminderReceiver : BroadcastReceiver() {
                         PendingIntent.FLAG_IMMUTABLE
             )
 
-        /*
-         * DONE action.
-         */
         val doneIntent =
-            Intent(
-                context,
-                DoneReceiver::class.java
-            ).apply {
+            if (recurring) {
 
-                putExtra(
-                    "REMINDER_ID",
-                    reminderId
-                )
+                Intent(
+                    context,
+                    DoneForTodayReceiver::class.java
+                ).apply {
+
+                    putExtra(
+                        "REMINDER_ID",
+                        reminderId
+                    )
+
+                    putExtra(
+                        "OCCURRENCE_DATE",
+                        occurrenceDate
+                    )
+                }
+
+            } else {
+
+                Intent(
+                    context,
+                    DoneReceiver::class.java
+                ).apply {
+
+                    putExtra(
+                        "REMINDER_ID",
+                        reminderId
+                    )
+                }
             }
 
         val donePendingIntent =
@@ -105,9 +133,6 @@ class ReminderReceiver : BroadcastReceiver() {
                         PendingIntent.FLAG_IMMUTABLE
             )
 
-        /*
-         * SNOOZE action.
-         */
         val snoozeIntent =
             Intent(
                 context,
@@ -133,6 +158,16 @@ class ReminderReceiver : BroadcastReceiver() {
                     "REMINDER_MESSAGE",
                     message
                 )
+
+                putExtra(
+                    "REMINDER_REPEAT_RULE",
+                    repeatRule
+                )
+
+                putExtra(
+                    "OCCURRENCE_DATE",
+                    occurrenceDate
+                )
             }
 
         val snoozePendingIntent =
@@ -143,6 +178,13 @@ class ReminderReceiver : BroadcastReceiver() {
                 PendingIntent.FLAG_UPDATE_CURRENT or
                         PendingIntent.FLAG_IMMUTABLE
             )
+
+        val doneButtonText =
+            if (recurring) {
+                "Done for today"
+            } else {
+                "Done"
+            }
 
         val notification =
             NotificationCompat.Builder(
@@ -171,7 +213,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 )
                 .addAction(
                     0,
-                    "Done",
+                    doneButtonText,
                     donePendingIntent
                 )
                 .addAction(
