@@ -38,8 +38,8 @@ class SnoozeReceiver : BroadcastReceiver() {
             ) ?: "You have something to remember."
 
         /*
-         * Remove the notification currently
-         * visible on the screen.
+         * Remove the notification that
+         * is currently visible.
          */
         val notificationManager =
             context.getSystemService(
@@ -51,9 +51,16 @@ class SnoozeReceiver : BroadcastReceiver() {
         )
 
         /*
-         * Create another ReminderReceiver intent
-         * carrying the same reminder information.
+         * The snooze alarm gets a different
+         * PendingIntent request code from the
+         * normal recurring alarm.
          */
+        val snoozeAlarmRequestCode =
+            ReminderScheduler
+                .createSnoozeAlarmRequestCode(
+                    notificationId
+                )
+
         val reminderIntent =
             Intent(
                 context,
@@ -65,6 +72,10 @@ class SnoozeReceiver : BroadcastReceiver() {
                     reminderId
                 )
 
+                /*
+                 * The notification itself keeps
+                 * the original notification ID.
+                 */
                 putExtra(
                     "NOTIFICATION_ID",
                     notificationId
@@ -84,16 +95,12 @@ class SnoozeReceiver : BroadcastReceiver() {
         val pendingIntent =
             PendingIntent.getBroadcast(
                 context,
-                notificationId,
+                snoozeAlarmRequestCode,
                 reminderIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or
                         PendingIntent.FLAG_IMMUTABLE
             )
 
-        /*
-         * Bring the notification back
-         * 10 minutes from now.
-         */
         val triggerTime =
             System.currentTimeMillis() +
                     (10 * 60 * 1000L)

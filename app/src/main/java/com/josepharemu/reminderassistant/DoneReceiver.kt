@@ -25,20 +25,13 @@ class DoneReceiver : BroadcastReceiver() {
             return
         }
 
-        /*
-         * Cancel all future alarms and any visible
-         * notifications belonging to this reminder.
-         */
-        ReminderScheduler.cancelReminder(
-            context,
-            reminderId
-        )
-
-        val pendingResult = goAsync()
+        val pendingResult =
+            goAsync()
 
         val scope =
             CoroutineScope(
-                SupervisorJob() + Dispatchers.IO
+                SupervisorJob() +
+                        Dispatchers.IO
             )
 
         scope.launch {
@@ -46,13 +39,28 @@ class DoneReceiver : BroadcastReceiver() {
             try {
 
                 val database =
-                    ReminderDatabase.getDatabase(
-                        context
-                    )
+                    ReminderDatabase
+                        .getDatabase(
+                            context
+                        )
 
+                /*
+                 * Mark the whole reminder series
+                 * as completed.
+                 */
                 database
                     .reminderDao()
                     .markReminderCompleted(
+                        reminderId
+                    )
+
+                /*
+                 * Cancel every normal,
+                 * recurring and snoozed alarm.
+                 */
+                ReminderScheduler
+                    .cancelReminder(
+                        context,
                         reminderId
                     )
 

@@ -18,19 +18,24 @@ class BootReceiver : BroadcastReceiver() {
     ) {
 
         Log.d(
-            "BootReceiver",
+            "PRA_BOOT",
             "Received action: ${intent.action}"
         )
 
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED) {
+        if (
+            intent.action !=
+            Intent.ACTION_BOOT_COMPLETED
+        ) {
             return
         }
 
-        val pendingResult = goAsync()
+        val pendingResult =
+            goAsync()
 
         val scope =
             CoroutineScope(
-                SupervisorJob() + Dispatchers.IO
+                SupervisorJob() +
+                        Dispatchers.IO
             )
 
         scope.launch {
@@ -38,37 +43,72 @@ class BootReceiver : BroadcastReceiver() {
             try {
 
                 val database =
-                    ReminderDatabase.getDatabase(context)
+                    ReminderDatabase
+                        .getDatabase(
+                            context
+                        )
+
+                val dao =
+                    database.reminderDao()
 
                 val activeReminders =
-                    database
-                        .reminderDao()
+                    dao
                         .getActiveReminders()
                         .first()
 
                 Log.d(
-                    "BootReceiver",
+                    "PRA_BOOT",
                     "Found ${activeReminders.size} active reminders"
                 )
 
-                activeReminders.forEach { reminder ->
+                activeReminders.forEach {
+                        reminder ->
+
+                    /*
+                     * If a recurring reminder became
+                     * overdue while the phone was off,
+                     * move it to its next valid future
+                     * occurrence first.
+                     */
+                    val reminderToSchedule =
+                        ReminderScheduler
+                            .moveRecurringReminderToFuture(
+                                reminder
+                            )
+
+                    if (
+                        reminderToSchedule.date !=
+                        reminder.date
+                    ) {
+
+                        dao.updateReminderDate(
+                            reminderId =
+                                reminder.id,
+
+                            newDate =
+                                reminderToSchedule.date
+                        )
+                    }
 
                     val scheduled =
-                        ReminderScheduler.scheduleReminder(
-                            context,
-                            reminder
-                        )
+                        ReminderScheduler
+                            .scheduleReminder(
+                                context,
+                                reminderToSchedule
+                            )
 
                     Log.d(
-                        "BootReceiver",
+                        "PRA_BOOT",
                         "Rescheduled ${reminder.title}: $scheduled"
                     )
                 }
 
-            } catch (exception: Exception) {
+            } catch (
+                exception: Exception
+            ) {
 
                 Log.e(
-                    "BootReceiver",
+                    "PRA_BOOT",
                     "Failed to restore reminders",
                     exception
                 )
