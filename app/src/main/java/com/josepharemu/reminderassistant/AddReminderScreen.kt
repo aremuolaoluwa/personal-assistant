@@ -13,7 +13,6 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,8 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -55,7 +52,8 @@ fun AddReminderScreen(
         ReminderDatabase.getDatabase(context)
     }
 
-    val coroutineScope = rememberCoroutineScope()
+    val coroutineScope =
+        rememberCoroutineScope()
 
     var title by remember {
         mutableStateOf("")
@@ -85,15 +83,20 @@ fun AddReminderScreen(
         mutableStateOf("Personal")
     }
 
-    var selectedReminderTiming by remember {
-        mutableStateOf("At time of event")
+    var selectedReminderTimings by remember {
+        mutableStateOf(
+            setOf("At time of event")
+        )
     }
 
-    val calendar = Calendar.getInstance()
+    val calendar =
+        Calendar.getInstance()
 
     val notificationPermissionLauncher =
         rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.RequestPermission()
+            contract =
+                ActivityResultContracts
+                    .RequestPermission()
         ) { granted ->
 
             if (granted) {
@@ -117,7 +120,9 @@ fun AddReminderScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(
+                rememberScrollState()
+            )
             .padding(24.dp)
     ) {
 
@@ -128,198 +133,274 @@ fun AddReminderScreen(
         }
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         Text(
             text = "Add Reminder",
-            style = MaterialTheme.typography.headlineMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .headlineMedium
         )
 
         Spacer(
-            modifier = Modifier.height(24.dp)
+            modifier =
+                Modifier.height(24.dp)
         )
 
         Text(
             text = "Title",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         OutlinedTextField(
             value = title,
+
             onValueChange = {
                 title = it
             },
+
             placeholder = {
                 Text(
-                    text = "What do you need to remember?"
+                    text =
+                        "What do you need to remember?"
                 )
             },
-            modifier = Modifier.fillMaxWidth(),
+
+            modifier =
+                Modifier.fillMaxWidth(),
+
             singleLine = true
         )
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(20.dp)
         )
 
         Text(
             text = "Type",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         SimpleDropdown(
-            selectedValue = selectedType,
+            selectedValue =
+                selectedType,
+
             options = listOf(
                 "Event",
                 "Deadline",
                 "Task",
                 "Reminder"
             ),
+
             onValueSelected = {
                 selectedType = it
             }
         )
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(20.dp)
         )
 
         Text(
             text = "Date",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         OutlinedButton(
             onClick = {
 
-                val datePicker = DatePickerDialog(
+                DatePickerDialog(
                     context,
-                    { _, year, month, dayOfMonth ->
+
+                    { _, year, month, day ->
 
                         selectedDate =
-                            "%02d/%02d/%04d".format(
-                                dayOfMonth,
-                                month + 1,
-                                year
-                            )
+                            "%02d/%02d/%04d"
+                                .format(
+                                    day,
+                                    month + 1,
+                                    year
+                                )
                     },
-                    calendar.get(Calendar.YEAR),
-                    calendar.get(Calendar.MONTH),
-                    calendar.get(Calendar.DAY_OF_MONTH)
-                )
 
-                datePicker.show()
+                    calendar.get(
+                        Calendar.YEAR
+                    ),
+
+                    calendar.get(
+                        Calendar.MONTH
+                    ),
+
+                    calendar.get(
+                        Calendar.DAY_OF_MONTH
+                    )
+
+                ).show()
             },
-            modifier = Modifier.fillMaxWidth()
+
+            modifier =
+                Modifier.fillMaxWidth()
         ) {
 
             Text(
-                text = if (selectedDate.isBlank()) {
-                    "Choose Date"
-                } else {
-                    selectedDate
-                }
+                text =
+                    if (
+                        selectedDate.isBlank()
+                    ) {
+                        "Choose Date"
+                    } else {
+                        selectedDate
+                    }
             )
         }
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(20.dp)
         )
 
         Text(
             text = "Time",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         OutlinedButton(
             onClick = {
 
-                val timePicker = TimePickerDialog(
+                TimePickerDialog(
                     context,
-                    { _, hourOfDay, minute ->
+
+                    { _, hour, minute ->
 
                         selectedTime =
-                            "%02d:%02d".format(
-                                hourOfDay,
-                                minute
-                            )
+                            "%02d:%02d"
+                                .format(
+                                    hour,
+                                    minute
+                                )
                     },
-                    calendar.get(Calendar.HOUR_OF_DAY),
-                    calendar.get(Calendar.MINUTE),
-                    true
-                )
 
-                timePicker.show()
+                    calendar.get(
+                        Calendar.HOUR_OF_DAY
+                    ),
+
+                    calendar.get(
+                        Calendar.MINUTE
+                    ),
+
+                    true
+
+                ).show()
             },
-            modifier = Modifier.fillMaxWidth()
+
+            modifier =
+                Modifier.fillMaxWidth()
         ) {
 
             Text(
-                text = if (selectedTime.isBlank()) {
-                    "Choose Time"
-                } else {
-                    selectedTime
-                }
+                text =
+                    if (
+                        selectedTime.isBlank()
+                    ) {
+                        "Choose Time"
+                    } else {
+                        selectedTime
+                    }
             )
         }
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(20.dp)
         )
 
         Text(
             text = "Priority",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         SimpleDropdown(
-            selectedValue = selectedPriority,
+            selectedValue =
+                selectedPriority,
+
             options = listOf(
                 "Normal",
                 "Important",
                 "Critical"
             ),
+
             onValueSelected = {
                 selectedPriority = it
             }
         )
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(20.dp)
         )
 
         Text(
             text = "Category",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         SimpleDropdown(
-            selectedValue = selectedCategory,
+            selectedValue =
+                selectedCategory,
+
             options = listOf(
                 "Personal",
                 "Work",
@@ -331,71 +412,84 @@ fun AddReminderScreen(
                 "Birthdays",
                 "Other"
             ),
+
             onValueSelected = {
                 selectedCategory = it
             }
         )
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(20.dp)
         )
 
         Text(
             text = "Remind Me",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
+        )
+
+        Text(
+            text =
+                "You can select more than one."
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
-        SimpleDropdown(
-            selectedValue = selectedReminderTiming,
-            options = listOf(
-                "At time of event",
-                "10 minutes before",
-                "30 minutes before",
-                "1 hour before",
-                "2 hours before",
-                "1 day before",
-                "3 days before",
-                "1 week before"
-            ),
-            onValueSelected = {
-                selectedReminderTiming = it
+        ReminderTimingSelector(
+            selectedTimings =
+                selectedReminderTimings,
+
+            onSelectionChanged = {
+                selectedReminderTimings = it
             }
         )
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(20.dp)
         )
 
         Text(
             text = "Notes",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
         )
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         OutlinedTextField(
             value = notes,
+
             onValueChange = {
                 notes = it
             },
+
             placeholder = {
                 Text(
-                    text = "Add any useful information"
+                    text =
+                        "Add any useful information"
                 )
             },
+
             modifier = Modifier
                 .fillMaxWidth()
                 .height(120.dp)
         )
 
         Spacer(
-            modifier = Modifier.height(32.dp)
+            modifier =
+                Modifier.height(32.dp)
         )
 
         Button(
@@ -430,23 +524,43 @@ fun AddReminderScreen(
                         ).show()
                     }
 
-                    Build.VERSION.SDK_INT >=
-                            Build.VERSION_CODES.TIRAMISU &&
-                            ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.POST_NOTIFICATIONS
-                            ) != PackageManager.PERMISSION_GRANTED -> {
+                    selectedReminderTimings
+                        .isEmpty() -> {
 
-                        notificationPermissionLauncher.launch(
-                            Manifest.permission.POST_NOTIFICATIONS
-                        )
+                        Toast.makeText(
+                            context,
+                            "Please select at least one reminder time",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+
+                    Build.VERSION.SDK_INT >=
+                            Build.VERSION_CODES
+                                .TIRAMISU &&
+                            ContextCompat
+                                .checkSelfPermission(
+                                    context,
+                                    Manifest.permission
+                                        .POST_NOTIFICATIONS
+                                ) !=
+                            PackageManager
+                                .PERMISSION_GRANTED -> {
+
+                        notificationPermissionLauncher
+                            .launch(
+                                Manifest.permission
+                                    .POST_NOTIFICATIONS
+                            )
                     }
 
                     Build.VERSION.SDK_INT >=
                             Build.VERSION_CODES.S &&
-                            !(context.getSystemService(
-                                Context.ALARM_SERVICE
-                            ) as AlarmManager)
+                            !(
+                                    context
+                                        .getSystemService(
+                                            Context.ALARM_SERVICE
+                                        ) as AlarmManager
+                                    )
                                 .canScheduleExactAlarms() -> {
 
                         Toast.makeText(
@@ -455,41 +569,67 @@ fun AddReminderScreen(
                             Toast.LENGTH_LONG
                         ).show()
 
-                        val intent = Intent(
-                            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM
-                        ).apply {
+                        val intent =
+                            Intent(
+                                Settings
+                                    .ACTION_REQUEST_SCHEDULE_EXACT_ALARM
+                            ).apply {
 
-                            data = Uri.parse(
-                                "package:${context.packageName}"
-                            )
-                        }
+                                data =
+                                    Uri.parse(
+                                        "package:${context.packageName}"
+                                    )
+                            }
 
-                        context.startActivity(intent)
+                        context.startActivity(
+                            intent
+                        )
                     }
 
                     else -> {
 
-                        val reminder = Reminder(
-                            title = title.trim(),
-                            type = selectedType,
-                            date = selectedDate,
-                            time = selectedTime,
-                            priority = selectedPriority,
-                            category = selectedCategory,
-                            reminderTiming = selectedReminderTiming,
-                            notes = notes.trim()
-                        )
+                        val reminder =
+                            Reminder(
+                                title =
+                                    title.trim(),
+
+                                type =
+                                    selectedType,
+
+                                date =
+                                    selectedDate,
+
+                                time =
+                                    selectedTime,
+
+                                priority =
+                                    selectedPriority,
+
+                                category =
+                                    selectedCategory,
+
+                                reminderTiming =
+                                    serializeReminderTimings(
+                                        selectedReminderTimings
+                                    ),
+
+                                notes =
+                                    notes.trim()
+                            )
 
                         coroutineScope.launch {
 
                             val newId =
                                 database
                                     .reminderDao()
-                                    .insertReminder(reminder)
+                                    .insertReminder(
+                                        reminder
+                                    )
 
                             val savedReminder =
                                 reminder.copy(
-                                    id = newId.toInt()
+                                    id =
+                                        newId.toInt()
                                 )
 
                             val scheduled =
@@ -511,7 +651,7 @@ fun AddReminderScreen(
 
                                 Toast.makeText(
                                     context,
-                                    "Reminder saved, but the notification could not be scheduled.",
+                                    "Reminder saved, but no future notification could be scheduled.",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
@@ -521,7 +661,9 @@ fun AddReminderScreen(
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+
+            modifier =
+                Modifier.fillMaxWidth()
         ) {
 
             Text(
@@ -530,7 +672,8 @@ fun AddReminderScreen(
         }
 
         Spacer(
-            modifier = Modifier.height(24.dp)
+            modifier =
+                Modifier.height(24.dp)
         )
     }
 }
@@ -546,15 +689,18 @@ fun SimpleDropdown(
         mutableStateOf(false)
     }
 
-    Box(
-        modifier = Modifier.fillMaxWidth()
+    androidx.compose.foundation.layout.Box(
+        modifier =
+            Modifier.fillMaxWidth()
     ) {
 
         OutlinedButton(
             onClick = {
                 expanded = true
             },
-            modifier = Modifier.fillMaxWidth()
+
+            modifier =
+                Modifier.fillMaxWidth()
         ) {
 
             Text(
@@ -562,8 +708,9 @@ fun SimpleDropdown(
             )
         }
 
-        DropdownMenu(
+        androidx.compose.material3.DropdownMenu(
             expanded = expanded,
+
             onDismissRequest = {
                 expanded = false
             }
@@ -571,15 +718,19 @@ fun SimpleDropdown(
 
             options.forEach { option ->
 
-                DropdownMenuItem(
+                androidx.compose.material3.DropdownMenuItem(
                     text = {
+
                         Text(
                             text = option
                         )
                     },
+
                     onClick = {
 
-                        onValueSelected(option)
+                        onValueSelected(
+                            option
+                        )
 
                         expanded = false
                     }

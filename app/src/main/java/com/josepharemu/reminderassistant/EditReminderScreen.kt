@@ -36,52 +36,78 @@ fun EditReminderScreen(
     modifier: Modifier = Modifier
 ) {
 
-    val context = LocalContext.current
+    val context =
+        LocalContext.current
 
     val database = remember {
-        ReminderDatabase.getDatabase(context)
+        ReminderDatabase
+            .getDatabase(context)
     }
 
-    val coroutineScope = rememberCoroutineScope()
+    val coroutineScope =
+        rememberCoroutineScope()
 
     var title by remember(reminder.id) {
-        mutableStateOf(reminder.title)
+        mutableStateOf(
+            reminder.title
+        )
     }
 
     var notes by remember(reminder.id) {
-        mutableStateOf(reminder.notes)
+        mutableStateOf(
+            reminder.notes
+        )
     }
 
     var selectedType by remember(reminder.id) {
-        mutableStateOf(reminder.type)
+        mutableStateOf(
+            reminder.type
+        )
     }
 
     var selectedDate by remember(reminder.id) {
-        mutableStateOf(reminder.date)
+        mutableStateOf(
+            reminder.date
+        )
     }
 
     var selectedTime by remember(reminder.id) {
-        mutableStateOf(reminder.time)
+        mutableStateOf(
+            reminder.time
+        )
     }
 
     var selectedPriority by remember(reminder.id) {
-        mutableStateOf(reminder.priority)
+        mutableStateOf(
+            reminder.priority
+        )
     }
 
     var selectedCategory by remember(reminder.id) {
-        mutableStateOf(reminder.category)
+        mutableStateOf(
+            reminder.category
+        )
     }
 
-    var selectedReminderTiming by remember(reminder.id) {
-        mutableStateOf(reminder.reminderTiming)
-    }
+    var selectedReminderTimings
+            by remember(reminder.id) {
 
-    val calendar = Calendar.getInstance()
+                mutableStateOf(
+                    parseReminderTimings(
+                        reminder.reminderTiming
+                    )
+                )
+            }
+
+    val calendar =
+        Calendar.getInstance()
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(
+                rememberScrollState()
+            )
             .padding(24.dp)
     ) {
 
@@ -92,163 +118,260 @@ fun EditReminderScreen(
         }
 
         Spacer(
-            modifier = Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         Text(
             text = "Edit Reminder",
-            style = MaterialTheme.typography.headlineMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .headlineMedium
         )
 
         Spacer(
-            modifier = Modifier.height(24.dp)
+            modifier =
+                Modifier.height(24.dp)
         )
 
         Text(
             text = "Title",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(
+            modifier =
+                Modifier.height(8.dp)
+        )
 
         OutlinedTextField(
             value = title,
+
             onValueChange = {
                 title = it
             },
-            modifier = Modifier.fillMaxWidth(),
+
+            modifier =
+                Modifier.fillMaxWidth(),
+
             singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(
+            modifier =
+                Modifier.height(20.dp)
+        )
 
         Text(
             text = "Type",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(
+            modifier =
+                Modifier.height(8.dp)
+        )
 
         SimpleDropdown(
-            selectedValue = selectedType,
+            selectedValue =
+                selectedType,
+
             options = listOf(
                 "Event",
                 "Deadline",
                 "Task",
                 "Reminder"
             ),
+
             onValueSelected = {
                 selectedType = it
             }
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(
+            modifier =
+                Modifier.height(20.dp)
+        )
 
         Text(
             text = "Date",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(
+            modifier =
+                Modifier.height(8.dp)
+        )
 
         OutlinedButton(
             onClick = {
 
-                val datePicker = DatePickerDialog(
+                DatePickerDialog(
                     context,
-                    { _, year, month, dayOfMonth ->
+
+                    { _, year, month, day ->
 
                         selectedDate =
-                            "%02d/%02d/%04d".format(
-                                dayOfMonth,
-                                month + 1,
-                                year
-                            )
+                            "%02d/%02d/%04d"
+                                .format(
+                                    day,
+                                    month + 1,
+                                    year
+                                )
                     },
-                    calendar.get(Calendar.YEAR),
-                    calendar.get(Calendar.MONTH),
-                    calendar.get(Calendar.DAY_OF_MONTH)
-                )
 
-                datePicker.show()
+                    calendar.get(
+                        Calendar.YEAR
+                    ),
+
+                    calendar.get(
+                        Calendar.MONTH
+                    ),
+
+                    calendar.get(
+                        Calendar.DAY_OF_MONTH
+                    )
+
+                ).show()
             },
-            modifier = Modifier.fillMaxWidth()
+
+            modifier =
+                Modifier.fillMaxWidth()
         ) {
-            Text(text = selectedDate)
-        }
 
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            text = "Time",
-            style = MaterialTheme.typography.titleMedium
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedButton(
-            onClick = {
-
-                val timePicker = TimePickerDialog(
-                    context,
-                    { _, hourOfDay, minute ->
-
-                        selectedTime =
-                            "%02d:%02d".format(
-                                hourOfDay,
-                                minute
-                            )
-                    },
-                    calendar.get(Calendar.HOUR_OF_DAY),
-                    calendar.get(Calendar.MINUTE),
-                    true
-                )
-
-                timePicker.show()
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
             Text(
-                text = if (selectedTime.isBlank()) {
-                    "Choose Time"
-                } else {
-                    selectedTime
-                }
+                text = selectedDate
             )
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(
+            modifier =
+                Modifier.height(20.dp)
+        )
+
+        Text(
+            text = "Time",
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
+        )
+
+        Spacer(
+            modifier =
+                Modifier.height(8.dp)
+        )
+
+        OutlinedButton(
+            onClick = {
+
+                TimePickerDialog(
+                    context,
+
+                    { _, hour, minute ->
+
+                        selectedTime =
+                            "%02d:%02d"
+                                .format(
+                                    hour,
+                                    minute
+                                )
+                    },
+
+                    calendar.get(
+                        Calendar.HOUR_OF_DAY
+                    ),
+
+                    calendar.get(
+                        Calendar.MINUTE
+                    ),
+
+                    true
+
+                ).show()
+            },
+
+            modifier =
+                Modifier.fillMaxWidth()
+        ) {
+
+            Text(
+                text =
+                    if (
+                        selectedTime.isBlank()
+                    ) {
+                        "Choose Time"
+                    } else {
+                        selectedTime
+                    }
+            )
+        }
+
+        Spacer(
+            modifier =
+                Modifier.height(20.dp)
+        )
 
         Text(
             text = "Priority",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(
+            modifier =
+                Modifier.height(8.dp)
+        )
 
         SimpleDropdown(
-            selectedValue = selectedPriority,
+            selectedValue =
+                selectedPriority,
+
             options = listOf(
                 "Normal",
                 "Important",
                 "Critical"
             ),
+
             onValueSelected = {
                 selectedPriority = it
             }
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(
+            modifier =
+                Modifier.height(20.dp)
+        )
 
         Text(
             text = "Category",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(
+            modifier =
+                Modifier.height(8.dp)
+        )
 
         SimpleDropdown(
-            selectedValue = selectedCategory,
+            selectedValue =
+                selectedCategory,
+
             options = listOf(
                 "Personal",
                 "Work",
@@ -260,57 +383,78 @@ fun EditReminderScreen(
                 "Birthdays",
                 "Other"
             ),
+
             onValueSelected = {
                 selectedCategory = it
             }
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(
+            modifier =
+                Modifier.height(20.dp)
+        )
 
         Text(
             text = "Remind Me",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text =
+                "You can select more than one."
+        )
 
-        SimpleDropdown(
-            selectedValue = selectedReminderTiming,
-            options = listOf(
-                "At time of event",
-                "10 minutes before",
-                "30 minutes before",
-                "1 hour before",
-                "2 hours before",
-                "1 day before",
-                "3 days before",
-                "1 week before"
-            ),
-            onValueSelected = {
-                selectedReminderTiming = it
+        Spacer(
+            modifier =
+                Modifier.height(8.dp)
+        )
+
+        ReminderTimingSelector(
+            selectedTimings =
+                selectedReminderTimings,
+
+            onSelectionChanged = {
+                selectedReminderTimings = it
             }
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(
+            modifier =
+                Modifier.height(20.dp)
+        )
 
         Text(
             text = "Notes",
-            style = MaterialTheme.typography.titleMedium
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(
+            modifier =
+                Modifier.height(8.dp)
+        )
 
         OutlinedTextField(
             value = notes,
+
             onValueChange = {
                 notes = it
             },
+
             modifier = Modifier
                 .fillMaxWidth()
                 .height(120.dp)
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(
+            modifier =
+                Modifier.height(32.dp)
+        )
 
         Button(
             onClick = {
@@ -344,34 +488,70 @@ fun EditReminderScreen(
                         ).show()
                     }
 
+                    selectedReminderTimings
+                        .isEmpty() -> {
+
+                        Toast.makeText(
+                            context,
+                            "Please select at least one reminder time",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+
                     else -> {
 
                         val updatedReminder =
                             reminder.copy(
-                                title = title.trim(),
-                                type = selectedType,
-                                date = selectedDate,
-                                time = selectedTime,
-                                priority = selectedPriority,
-                                category = selectedCategory,
-                                reminderTiming = selectedReminderTiming,
-                                notes = notes.trim()
+
+                                title =
+                                    title.trim(),
+
+                                type =
+                                    selectedType,
+
+                                date =
+                                    selectedDate,
+
+                                time =
+                                    selectedTime,
+
+                                priority =
+                                    selectedPriority,
+
+                                category =
+                                    selectedCategory,
+
+                                reminderTiming =
+                                    serializeReminderTimings(
+                                        selectedReminderTimings
+                                    ),
+
+                                notes =
+                                    notes.trim()
                             )
 
                         coroutineScope.launch {
 
-                            // Remove the previous alarm first.
-                            ReminderScheduler.cancelReminder(
-                                context,
-                                reminder.id
-                            )
+                            /*
+                             * Cancel all alarms belonging
+                             * to the previous version.
+                             */
+                            ReminderScheduler
+                                .cancelReminder(
+                                    context,
+                                    reminder.id
+                                )
 
-                            // Update the reminder in Room.
                             database
                                 .reminderDao()
-                                .updateReminder(updatedReminder)
+                                .updateReminder(
+                                    updatedReminder
+                                )
 
-                            // Schedule the newly edited version.
+                            /*
+                             * Schedule all selected
+                             * reminder times again.
+                             */
                             val scheduled =
                                 ReminderScheduler
                                     .scheduleReminder(
@@ -391,7 +571,7 @@ fun EditReminderScreen(
 
                                 Toast.makeText(
                                     context,
-                                    "Reminder updated, but its notification could not be scheduled.",
+                                    "Reminder updated, but no future notification could be scheduled.",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
@@ -401,11 +581,19 @@ fun EditReminderScreen(
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+
+            modifier =
+                Modifier.fillMaxWidth()
         ) {
-            Text(text = "Save Changes")
+
+            Text(
+                text = "Save Changes"
+            )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(
+            modifier =
+                Modifier.height(24.dp)
+        )
     }
 }

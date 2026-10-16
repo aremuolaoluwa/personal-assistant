@@ -19,65 +19,91 @@ class ReminderReceiver : BroadcastReceiver() {
         intent: Intent
     ) {
 
-        val reminderId = intent.getIntExtra(
-            "REMINDER_ID",
-            0
+        val reminderId =
+            intent.getIntExtra(
+                "REMINDER_ID",
+                0
+            )
+
+        val notificationId =
+            intent.getIntExtra(
+                "NOTIFICATION_ID",
+                reminderId
+            )
+
+        val title =
+            intent.getStringExtra(
+                "REMINDER_TITLE"
+            ) ?: "Reminder"
+
+        val message =
+            intent.getStringExtra(
+                "REMINDER_MESSAGE"
+            ) ?: "You have something to remember."
+
+        createNotificationChannel(
+            context
         )
 
-        val title = intent.getStringExtra(
-            "REMINDER_TITLE"
-        ) ?: "Reminder"
-
-        val message = intent.getStringExtra(
-            "REMINDER_MESSAGE"
-        ) ?: "You have something to remember."
-
-        createNotificationChannel(context)
-
-        // Android 13+ requires notification permission.
         if (
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            Build.VERSION.SDK_INT >=
+            Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.POST_NOTIFICATIONS
             ) != PackageManager.PERMISSION_GRANTED
         ) {
+
             return
         }
 
-        val openAppIntent = Intent(
-            context,
-            MainActivity::class.java
-        ).apply {
+        val openAppIntent =
+            Intent(
+                context,
+                MainActivity::class.java
+            ).apply {
 
-            flags =
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
+                flags =
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
 
-        val openAppPendingIntent = PendingIntent.getActivity(
-            context,
-            reminderId,
-            openAppIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or
-                    PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val notification = NotificationCompat.Builder(
-            context,
-            CHANNEL_ID
-        )
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle(title)
-            .setContentText(message)
-            .setStyle(
-                NotificationCompat.BigTextStyle()
-                    .bigText(message)
+        val openAppPendingIntent =
+            PendingIntent.getActivity(
+                context,
+                notificationId,
+                openAppIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_IMMUTABLE
             )
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setContentIntent(openAppPendingIntent)
-            .setAutoCancel(true)
-            .build()
+
+        val notification =
+            NotificationCompat.Builder(
+                context,
+                CHANNEL_ID
+            )
+                .setSmallIcon(
+                    android.R.drawable.ic_dialog_info
+                )
+                .setContentTitle(
+                    title
+                )
+                .setContentText(
+                    message
+                )
+                .setStyle(
+                    NotificationCompat
+                        .BigTextStyle()
+                        .bigText(message)
+                )
+                .setPriority(
+                    NotificationCompat.PRIORITY_HIGH
+                )
+                .setContentIntent(
+                    openAppPendingIntent
+                )
+                .setAutoCancel(true)
+                .build()
 
         val notificationManager =
             context.getSystemService(
@@ -85,7 +111,7 @@ class ReminderReceiver : BroadcastReceiver() {
             ) as NotificationManager
 
         notificationManager.notify(
-            reminderId,
+            notificationId,
             notification
         )
     }
@@ -94,26 +120,32 @@ class ReminderReceiver : BroadcastReceiver() {
         context: Context
     ) {
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (
+            Build.VERSION.SDK_INT >=
+            Build.VERSION_CODES.O
+        ) {
 
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Reminder Notifications",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
+            val channel =
+                NotificationChannel(
+                    CHANNEL_ID,
+                    "Reminder Notifications",
+                    NotificationManager
+                        .IMPORTANCE_HIGH
+                ).apply {
 
-                description =
-                    "Notifications for scheduled reminders"
-            }
+                    description =
+                        "Notifications for scheduled reminders"
+                }
 
             val notificationManager =
                 context.getSystemService(
                     Context.NOTIFICATION_SERVICE
                 ) as NotificationManager
 
-            notificationManager.createNotificationChannel(
-                channel
-            )
+            notificationManager
+                .createNotificationChannel(
+                    channel
+                )
         }
     }
 
