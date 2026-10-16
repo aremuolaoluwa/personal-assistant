@@ -51,6 +51,10 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf("home")
                 }
 
+                var selectedReminder by remember {
+                    mutableStateOf<Reminder?>(null)
+                }
+
                 Scaffold(
                     modifier = Modifier.fillMaxSize()
                 ) { innerPadding ->
@@ -58,18 +62,29 @@ class MainActivity : ComponentActivity() {
                     when (currentScreen) {
 
                         "home" -> {
+
                             HomeScreen(
                                 onAddReminder = {
                                     currentScreen = "addReminder"
                                 },
+
                                 onOpenCompleted = {
                                     currentScreen = "completed"
                                 },
+
+                                onEditReminder = { reminder ->
+
+                                    selectedReminder = reminder
+
+                                    currentScreen = "editReminder"
+                                },
+
                                 modifier = Modifier.padding(innerPadding)
                             )
                         }
 
                         "addReminder" -> {
+
                             AddReminderScreen(
                                 onBack = {
                                     currentScreen = "home"
@@ -78,7 +93,28 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
+                        "editReminder" -> {
+
+                            selectedReminder?.let { reminder ->
+
+                                EditReminderScreen(
+                                    reminder = reminder,
+
+                                    onBack = {
+
+                                        selectedReminder = null
+
+                                        currentScreen = "home"
+                                    },
+
+                                    modifier =
+                                        Modifier.padding(innerPadding)
+                                )
+                            }
+                        }
+
                         "completed" -> {
+
                             CompletedScreen(
                                 onBack = {
                                     currentScreen = "home"
@@ -97,6 +133,7 @@ class MainActivity : ComponentActivity() {
 fun HomeScreen(
     onAddReminder: () -> Unit,
     onOpenCompleted: () -> Unit,
+    onEditReminder: (Reminder) -> Unit,
     modifier: Modifier = Modifier
 ) {
 
@@ -113,10 +150,11 @@ fun HomeScreen(
         .getActiveReminders()
         .collectAsState(initial = emptyList())
 
-    val today = SimpleDateFormat(
-        "dd/MM/yyyy",
-        Locale.getDefault()
-    ).format(Date())
+    val today =
+        SimpleDateFormat(
+            "dd/MM/yyyy",
+            Locale.getDefault()
+        ).format(Date())
 
     val todayReminders = reminders.filter {
         it.date == today
@@ -124,8 +162,10 @@ fun HomeScreen(
 
     val importantReminders = reminders.filter {
         it.date != today &&
-                (it.priority == "Important" ||
-                        it.priority == "Critical")
+                (
+                        it.priority == "Important" ||
+                                it.priority == "Critical"
+                        )
     }
 
     val upcomingReminders = reminders.filter {
@@ -156,7 +196,9 @@ fun HomeScreen(
 
         if (todayReminders.isEmpty()) {
 
-            Text(text = "No reminders for today")
+            Text(
+                text = "No reminders for today"
+            )
 
         } else {
 
@@ -164,6 +206,10 @@ fun HomeScreen(
 
                 ReminderCard(
                     reminder = reminder,
+
+                    onEdit = {
+                        onEditReminder(reminder)
+                    },
 
                     onDone = {
 
@@ -215,7 +261,9 @@ fun HomeScreen(
 
         if (importantReminders.isEmpty()) {
 
-            Text(text = "Nothing important yet")
+            Text(
+                text = "Nothing important yet"
+            )
 
         } else {
 
@@ -223,6 +271,10 @@ fun HomeScreen(
 
                 ReminderCard(
                     reminder = reminder,
+
+                    onEdit = {
+                        onEditReminder(reminder)
+                    },
 
                     onDone = {
 
@@ -274,7 +326,9 @@ fun HomeScreen(
 
         if (upcomingReminders.isEmpty()) {
 
-            Text(text = "No upcoming items")
+            Text(
+                text = "No upcoming items"
+            )
 
         } else {
 
@@ -282,6 +336,10 @@ fun HomeScreen(
 
                 ReminderCard(
                     reminder = reminder,
+
+                    onEdit = {
+                        onEditReminder(reminder)
+                    },
 
                     onDone = {
 
@@ -347,6 +405,7 @@ fun HomeScreen(
 @Composable
 fun ReminderCard(
     reminder: Reminder,
+    onEdit: () -> Unit,
     onDone: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -389,10 +448,21 @@ fun ReminderCard(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                Text(text = reminder.notes)
+                Text(
+                    text = reminder.notes
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedButton(
+                onClick = onEdit,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(text = "Edit")
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -426,7 +496,8 @@ fun HomeScreenPreview() {
 
         HomeScreen(
             onAddReminder = {},
-            onOpenCompleted = {}
+            onOpenCompleted = {},
+            onEditReminder = {}
         )
     }
 }
