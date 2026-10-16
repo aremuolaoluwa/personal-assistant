@@ -62,12 +62,24 @@ class MainActivity : ComponentActivity() {
                                 onAddReminder = {
                                     currentScreen = "addReminder"
                                 },
+                                onOpenCompleted = {
+                                    currentScreen = "completed"
+                                },
                                 modifier = Modifier.padding(innerPadding)
                             )
                         }
 
                         "addReminder" -> {
                             AddReminderScreen(
+                                onBack = {
+                                    currentScreen = "home"
+                                },
+                                modifier = Modifier.padding(innerPadding)
+                            )
+                        }
+
+                        "completed" -> {
+                            CompletedScreen(
                                 onBack = {
                                     currentScreen = "home"
                                 },
@@ -84,6 +96,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun HomeScreen(
     onAddReminder: () -> Unit,
+    onOpenCompleted: () -> Unit,
     modifier: Modifier = Modifier
 ) {
 
@@ -157,6 +170,7 @@ fun HomeScreen(
 
                 ReminderCard(
                     reminder = reminder,
+
                     onDone = {
 
                         coroutineScope.launch {
@@ -170,6 +184,7 @@ fun HomeScreen(
                                 )
                         }
                     },
+
                     onDelete = {
 
                         coroutineScope.launch {
@@ -213,6 +228,7 @@ fun HomeScreen(
 
                 ReminderCard(
                     reminder = reminder,
+
                     onDone = {
 
                         coroutineScope.launch {
@@ -226,6 +242,7 @@ fun HomeScreen(
                                 )
                         }
                     },
+
                     onDelete = {
 
                         coroutineScope.launch {
@@ -269,6 +286,7 @@ fun HomeScreen(
 
                 ReminderCard(
                     reminder = reminder,
+
                     onDone = {
 
                         coroutineScope.launch {
@@ -282,6 +300,7 @@ fun HomeScreen(
                                 )
                         }
                     },
+
                     onDelete = {
 
                         coroutineScope.launch {
@@ -309,6 +328,19 @@ fun HomeScreen(
         ) {
             Text(
                 text = "+ Add Reminder"
+            )
+        }
+
+        Spacer(
+            modifier = Modifier.height(12.dp)
+        )
+
+        OutlinedButton(
+            onClick = onOpenCompleted,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "Completed"
             )
         }
 
@@ -405,7 +437,8 @@ fun HomeScreenPreview() {
 
     PersonalReminderAssistantTheme {
         HomeScreen(
-            onAddReminder = {}
+            onAddReminder = {},
+            onOpenCompleted = {}
         )
     }
 }
