@@ -1,5 +1,6 @@
 package com.josepharemu.reminderassistant
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -27,5 +28,8 @@ data class Reminder(
 
     val isCompleted: Boolean = false,
 
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+
+    @ColumnInfo(defaultValue = "None")
+    val repeatRule: String = "None"
 )
