@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [Reminder::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class ReminderDatabase : RoomDatabase() {
@@ -21,6 +21,12 @@ abstract class ReminderDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: ReminderDatabase? = null
 
+        /*
+         * Previous migration:
+         * database version 1 → version 2
+         *
+         * Added repeatRule.
+         */
         private val MIGRATION_1_2 =
             object : Migration(1, 2) {
 
@@ -32,6 +38,43 @@ abstract class ReminderDatabase : RoomDatabase() {
                         """
                         ALTER TABLE reminders
                         ADD COLUMN repeatRule TEXT NOT NULL DEFAULT 'None'
+                        """.trimIndent()
+                    )
+                }
+            }
+
+        /*
+         * New migration:
+         * database version 2 → version 3
+         *
+         * Adds an anchor date so Monthly and Yearly
+         * reminders can preserve their intended date.
+         */
+        private val MIGRATION_2_3 =
+            object : Migration(2, 3) {
+
+                override fun migrate(
+                    database: SupportSQLiteDatabase
+                ) {
+
+                    database.execSQL(
+                        """
+                        ALTER TABLE reminders
+                        ADD COLUMN repeatAnchorDate TEXT NOT NULL DEFAULT 'None'
+                        """.trimIndent()
+                    )
+
+                    /*
+                     * Existing recurring reminders did not previously
+                     * have an anchor date.
+                     *
+                     * Their current date becomes their initial anchor.
+                     */
+                    database.execSQL(
+                        """
+                        UPDATE reminders
+                        SET repeatAnchorDate = date
+                        WHERE repeatRule != 'None'
                         """.trimIndent()
                     )
                 }
@@ -50,7 +93,8 @@ abstract class ReminderDatabase : RoomDatabase() {
                         "reminder_database"
                     )
                         .addMigrations(
-                            MIGRATION_1_2
+                            MIGRATION_1_2,
+                            MIGRATION_2_3
                         )
                         .build()
 
