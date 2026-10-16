@@ -25,6 +25,7 @@
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
@@ -32,6 +33,16 @@
 
         <receiver
             android:name=".ReminderReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".DoneReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".SnoozeReceiver"
             android:enabled="true"
             android:exported="false" />
 

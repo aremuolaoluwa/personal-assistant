@@ -57,6 +57,10 @@ class ReminderReceiver : BroadcastReceiver() {
             return
         }
 
+        /*
+         * Tap the notification itself
+         * to open the app.
+         */
         val openAppIntent =
             Intent(
                 context,
@@ -73,6 +77,69 @@ class ReminderReceiver : BroadcastReceiver() {
                 context,
                 notificationId,
                 openAppIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_IMMUTABLE
+            )
+
+        /*
+         * DONE action.
+         */
+        val doneIntent =
+            Intent(
+                context,
+                DoneReceiver::class.java
+            ).apply {
+
+                putExtra(
+                    "REMINDER_ID",
+                    reminderId
+                )
+            }
+
+        val donePendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                notificationId * 10 + 1,
+                doneIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_IMMUTABLE
+            )
+
+        /*
+         * SNOOZE action.
+         */
+        val snoozeIntent =
+            Intent(
+                context,
+                SnoozeReceiver::class.java
+            ).apply {
+
+                putExtra(
+                    "REMINDER_ID",
+                    reminderId
+                )
+
+                putExtra(
+                    "NOTIFICATION_ID",
+                    notificationId
+                )
+
+                putExtra(
+                    "REMINDER_TITLE",
+                    title
+                )
+
+                putExtra(
+                    "REMINDER_MESSAGE",
+                    message
+                )
+            }
+
+        val snoozePendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                notificationId * 10 + 2,
+                snoozeIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or
                         PendingIntent.FLAG_IMMUTABLE
             )
@@ -102,6 +169,16 @@ class ReminderReceiver : BroadcastReceiver() {
                 .setContentIntent(
                     openAppPendingIntent
                 )
+                .addAction(
+                    0,
+                    "Done",
+                    donePendingIntent
+                )
+                .addAction(
+                    0,
+                    "Snooze 10 min",
+                    snoozePendingIntent
+                )
                 .setAutoCancel(true)
                 .build()
 
@@ -129,8 +206,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 NotificationChannel(
                     CHANNEL_ID,
                     "Reminder Notifications",
-                    NotificationManager
-                        .IMPORTANCE_HIGH
+                    NotificationManager.IMPORTANCE_HIGH
                 ).apply {
 
                     description =

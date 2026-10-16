@@ -27,4 +27,7 @@ interface ReminderDao {
 
     @Query("SELECT * FROM reminders WHERE isCompleted = 1 ORDER BY createdAt DESC")
     fun getCompletedReminders(): Flow<List<Reminder>>
+
+    @Query("UPDATE reminders SET isCompleted = 1 WHERE id = :reminderId")
+    suspend fun markReminderCompleted(reminderId: Int)
 }
