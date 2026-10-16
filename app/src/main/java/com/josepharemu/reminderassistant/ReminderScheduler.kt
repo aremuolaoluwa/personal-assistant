@@ -47,6 +47,17 @@ object ReminderScheduler {
             parseEventDateTime(reminder)
                 ?: return false
 
+        /*
+         * A recurring reminder must never schedule an
+         * occurrence after its Repeat Until date.
+         */
+        if (
+            isRecurring(reminder.repeatRule) &&
+            !isOccurrenceWithinRepeatLimit(reminder)
+        ) {
+            return false
+        }
+
         val selectedTimings =
             parseReminderTimings(
                 reminder.reminderTiming
@@ -86,7 +97,10 @@ object ReminderScheduler {
             }
         }
 
-        if (isRecurring(reminder.repeatRule)) {
+        if (
+            isRecurring(reminder.repeatRule) &&
+            hasNextOccurrence(reminder)
+        ) {
 
             val eventTriggerTime =
                 eventDateTime
@@ -397,6 +411,21 @@ object ReminderScheduler {
                 }
             }
 
+        val repeatUntilDate =
+            parseRepeatUntilDate(reminder)
+
+        /*
+         * Returning the same reminder is deliberate.
+         * Existing callers already use the date change to
+         * determine whether a recurrence was advanced.
+         */
+        if (
+            repeatUntilDate != null &&
+            nextDate.isAfter(repeatUntilDate)
+        ) {
+            return reminder
+        }
+
         return reminder.copy(
             date =
                 nextDate.format(
@@ -408,6 +437,37 @@ object ReminderScheduler {
                     dateFormatter
                 )
         )
+    }
+
+    /**
+     * True when another occurrence exists without crossing
+     * the optional Repeat Until date.
+     */
+    fun hasNextOccurrence(
+        reminder: Reminder
+    ): Boolean {
+
+        if (!isRecurring(reminder.repeatRule)) {
+            return false
+        }
+
+        val nextReminder =
+            getNextOccurrence(reminder)
+
+        return nextReminder.date !=
+                reminder.date
+    }
+
+    /**
+     * True when the current occurrence is the last allowed
+     * occurrence in a limited recurring series.
+     */
+    fun isFinalRecurringOccurrence(
+        reminder: Reminder
+    ): Boolean {
+
+        return isRecurring(reminder.repeatRule) &&
+                !hasNextOccurrence(reminder)
     }
 
     /*
@@ -513,6 +573,38 @@ object ReminderScheduler {
         return parseDate(
             reminder.date
         )
+    }
+
+    private fun parseRepeatUntilDate(
+        reminder: Reminder
+    ): LocalDate? {
+
+        if (
+            reminder.repeatUntilDate.isBlank() ||
+            reminder.repeatUntilDate == "None"
+        ) {
+            return null
+        }
+
+        return parseDate(
+            reminder.repeatUntilDate
+        )
+    }
+
+    private fun isOccurrenceWithinRepeatLimit(
+        reminder: Reminder
+    ): Boolean {
+
+        val repeatUntilDate =
+            parseRepeatUntilDate(reminder)
+                ?: return true
+
+        val occurrenceDate =
+            parseDate(reminder.date)
+                ?: return false
+
+        return !occurrenceDate
+            .isAfter(repeatUntilDate)
     }
 
     private fun parseDate(

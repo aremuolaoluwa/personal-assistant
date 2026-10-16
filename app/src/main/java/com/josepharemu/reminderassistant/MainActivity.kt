@@ -219,25 +219,48 @@ fun PersonalReminderApp() {
                             reminder
                         )
 
-                database
-                    .reminderDao()
-                    .updateReminderOccurrence(
-                        reminderId =
-                            reminder.id,
+                if (
+                    nextReminder.date ==
+                    reminder.date
+                ) {
 
-                        newDate =
-                            nextReminder.date,
+                    /*
+                     * This was the final allowed occurrence.
+                     * Completing it finishes the recurring series.
+                     */
+                    database
+                        .reminderDao()
+                        .updateReminder(
+                            reminder.copy(
+                                isCompleted = true,
+                                repeatRule = "None",
+                                repeatAnchorDate = "None",
+                                repeatUntilDate = "None"
+                            )
+                        )
 
-                        anchorDate =
+                } else {
+
+                    database
+                        .reminderDao()
+                        .updateReminderOccurrence(
+                            reminderId =
+                                reminder.id,
+
+                            newDate =
+                                nextReminder.date,
+
+                            anchorDate =
+                                nextReminder
+                                    .repeatAnchorDate
+                        )
+
+                    ReminderScheduler
+                        .scheduleReminder(
+                            context,
                             nextReminder
-                                .repeatAnchorDate
-                    )
-
-                ReminderScheduler
-                    .scheduleReminder(
-                        context,
-                        nextReminder
-                    )
+                        )
+                }
             }
 
         } else {
@@ -300,6 +323,9 @@ fun PersonalReminderApp() {
                         "None",
 
                     repeatAnchorDate =
+                        "None",
+
+                    repeatUntilDate =
                         "None"
                 )
 
@@ -695,55 +721,63 @@ fun DashboardScreen(
 
     val overdueReminders =
         sortedReminders
-            .filter {
+            .filter { reminder ->
 
-                val date =
-                    parseReminderDate(
-                        it.date
+                val dueDate =
+                    effectiveDueDate(
+                        reminder
                     )
 
-                date != null &&
-                        date.isBefore(
+                dueDate != null &&
+                        dueDate.isBefore(
                             today
                         )
             }
 
-    val attentionReminders =
+    val allAttentionReminders =
         sortedReminders
-            .filter {
+            .filter { reminder ->
 
                 val overdue =
-                    parseReminderDate(
-                        it.date
+                    effectiveDueDate(
+                        reminder
                     )?.isBefore(
                         today
                     ) == true
 
                 overdue ||
-                        it.priority ==
+                        reminder.priority ==
                         "Critical" ||
-                        it.priority ==
+                        reminder.priority ==
                         "Important"
             }
+
+    val attentionReminders =
+        allAttentionReminders
             .take(4)
 
     val approachingDeadlines =
-        sortedReminders
-            .filter {
+        reminders
+            .filter { reminder ->
 
-                val date =
-                    parseReminderDate(
-                        it.date
+                val dueDate =
+                    effectiveDueDate(
+                        reminder
                     )
 
-                it.type.equals(
+                reminder.type.equals(
                     "Deadline",
                     ignoreCase = true
                 ) &&
-                        date != null &&
-                        !date.isBefore(
+                        dueDate != null &&
+                        !dueDate.isBefore(
                             today
                         )
+            }
+            .sortedBy { reminder ->
+                effectiveDueDate(
+                    reminder
+                ) ?: LocalDate.MAX
             }
             .take(5)
 
@@ -844,7 +878,7 @@ fun DashboardScreen(
             DashboardSummaryCard(
 
                 attentionCount =
-                    attentionReminders
+                    allAttentionReminders
                         .size,
 
                 todayCount =
@@ -1475,6 +1509,31 @@ fun DashboardReminderCard(
             reminder.priority
         )
 
+    val isDeadline =
+        reminder.type.equals(
+            "Deadline",
+            ignoreCase = true
+        ) &&
+                reminder.deadlineDate != "None" &&
+                reminder.deadlineDate.isNotBlank()
+
+    val finalDeadlineDate =
+        if (isDeadline) {
+            parseReminderDate(
+                reminder.deadlineDate
+            )
+        } else {
+            null
+        }
+
+    val deadlineDays =
+        finalDeadlineDate?.let { date ->
+            ChronoUnit.DAYS.between(
+                LocalDate.now(),
+                date
+            )
+        }
+
     ElevatedCard(
 
         modifier =
@@ -1545,52 +1604,239 @@ fun DashboardReminderCard(
                             )
                     )
 
-                    Column {
+                    Text(
+                        text =
+                            reminder.title,
 
-                        Text(
-                            text =
-                                reminder.title,
+                        style =
+                            MaterialTheme
+                                .typography
+                                .titleMedium,
 
-                            style =
-                                MaterialTheme
-                                    .typography
-                                    .titleMedium,
+                        maxLines =
+                            2,
 
-                            maxLines =
-                                2,
+                        overflow =
+                            TextOverflow.Ellipsis,
 
-                            overflow =
-                                TextOverflow.Ellipsis
-                        )
-
-                        Spacer(
-                            modifier =
-                                Modifier.height(
-                                    4.dp
-                                )
-                        )
-
-                        Text(
-                            text =
-                                "${formatReminderDate(reminder.date)} • ${reminder.time}",
-
-                            style =
-                                MaterialTheme
-                                    .typography
-                                    .bodyMedium,
-
-                            color =
-                                MaterialTheme
-                                    .colorScheme
-                                    .onSurfaceVariant
-                        )
-                    }
+                        modifier =
+                            Modifier.weight(
+                                1f
+                            )
+                    )
                 }
+
+                Spacer(
+                    modifier =
+                        Modifier.size(
+                            8.dp
+                        )
+                )
 
                 PriorityChip(
                     priority =
                         reminder.priority
                 )
+            }
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        14.dp
+                    )
+            )
+
+            Text(
+                text =
+                    "Next reminder",
+
+                style =
+                    MaterialTheme
+                        .typography
+                        .labelLarge,
+
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurfaceVariant
+            )
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        2.dp
+                    )
+            )
+
+            Text(
+                text =
+                    "${relativeReminderDateLabel(reminder.date)} • ${reminder.time}",
+
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyLarge,
+
+                fontWeight =
+                    FontWeight.SemiBold
+            )
+
+            if (isDeadline) {
+
+                Spacer(
+                    modifier =
+                        Modifier.height(
+                            14.dp
+                        )
+                )
+
+                Surface(
+                    modifier =
+                        Modifier.fillMaxWidth(),
+
+                    shape =
+                        RoundedCornerShape(
+                            16.dp
+                        ),
+
+                    color =
+                        MaterialTheme
+                            .colorScheme
+                            .primaryContainer
+                            .copy(
+                                alpha = 0.55f
+                            )
+                ) {
+
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    14.dp
+                                ),
+
+                        horizontalArrangement =
+                            Arrangement.SpaceBetween,
+
+                        verticalAlignment =
+                            Alignment.CenterVertically
+                    ) {
+
+                        Column(
+                            modifier =
+                                Modifier.weight(
+                                    1f
+                                )
+                        ) {
+
+                            Text(
+                                text =
+                                    "Final deadline",
+
+                                style =
+                                    MaterialTheme
+                                        .typography
+                                        .labelLarge,
+
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .primary
+                            )
+
+                            Spacer(
+                                modifier =
+                                    Modifier.height(
+                                        3.dp
+                                    )
+                            )
+
+                            Text(
+                                text =
+                                    formatReminderDate(
+                                        reminder.deadlineDate
+                                    ) +
+                                            if (
+                                                reminder.deadlineTime != "None" &&
+                                                reminder.deadlineTime.isNotBlank()
+                                            ) {
+                                                " • ${reminder.deadlineTime}"
+                                            } else {
+                                                ""
+                                            },
+
+                                style =
+                                    MaterialTheme
+                                        .typography
+                                        .bodyLarge,
+
+                                fontWeight =
+                                    FontWeight.SemiBold
+                            )
+                        }
+
+                        if (deadlineDays != null) {
+
+                            Spacer(
+                                modifier =
+                                    Modifier.size(
+                                        10.dp
+                                    )
+                            )
+
+                            Surface(
+                                shape =
+                                    RoundedCornerShape(
+                                        50.dp
+                                    ),
+
+                                color =
+                                    if (
+                                        deadlineDays <= 3
+                                    ) {
+                                        CriticalRed.copy(
+                                            alpha = 0.12f
+                                        )
+                                    } else {
+                                        MaterialTheme
+                                            .colorScheme
+                                            .surface
+                                    }
+                            ) {
+
+                                Text(
+                                    text =
+                                        deadlineText(
+                                            deadlineDays
+                                        ),
+
+                                    style =
+                                        MaterialTheme
+                                            .typography
+                                            .labelLarge,
+
+                                    color =
+                                        if (
+                                            deadlineDays <= 3
+                                        ) {
+                                            CriticalRed
+                                        } else {
+                                            MaterialTheme
+                                                .colorScheme
+                                                .primary
+                                        },
+
+                                    modifier =
+                                        Modifier.padding(
+                                            horizontal = 10.dp,
+                                            vertical = 6.dp
+                                        )
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(
@@ -1635,6 +1881,33 @@ fun DashboardReminderCard(
                                 .Repeat
                     )
                 }
+            }
+
+            if (recurring) {
+
+                Spacer(
+                    modifier =
+                        Modifier.height(
+                            10.dp
+                        )
+                )
+
+                Text(
+                    text =
+                        recurrenceSummaryText(
+                            reminder
+                        ),
+
+                    style =
+                        MaterialTheme
+                            .typography
+                            .bodyMedium,
+
+                    color =
+                        MaterialTheme
+                            .colorScheme
+                            .onSurfaceVariant
+                )
             }
 
             if (
@@ -1845,9 +2118,19 @@ fun DeadlineRow(
 ) {
 
     val date =
-        parseReminderDate(
-            reminder.date
+        effectiveDueDate(
+            reminder
         )
+
+    val deadlineTime =
+        if (
+            reminder.deadlineTime != "None" &&
+            reminder.deadlineTime.isNotBlank()
+        ) {
+            reminder.deadlineTime
+        } else {
+            reminder.time
+        }
 
     val today =
         LocalDate.now()
@@ -1988,9 +2271,7 @@ fun DeadlineRow(
 
                 Text(
                     text =
-                        deadlineText(
-                            days
-                        ),
+                        "${deadlineText(days)} • $deadlineTime",
 
                     style =
                         MaterialTheme
@@ -2110,7 +2391,20 @@ fun OngoingReminderRow(
 
                 Text(
                     text =
-                        "${reminder.repeatRule} • Next ${formatReminderDate(reminder.date)} at ${reminder.time}",
+                        buildString {
+                            append(
+                                "${reminder.repeatRule} • Next ${formatReminderDate(reminder.date)} at ${reminder.time}"
+                            )
+
+                            if (
+                                reminder.repeatUntilDate != "None" &&
+                                reminder.repeatUntilDate.isNotBlank()
+                            ) {
+                                append(
+                                    " • Until ${formatReminderDate(reminder.repeatUntilDate)}"
+                                )
+                            }
+                        },
 
                     style =
                         MaterialTheme
@@ -3068,6 +3362,93 @@ private fun formatReminderDate(
 
         value
     }
+}
+
+private fun relativeReminderDateLabel(
+    value: String
+): String {
+
+    val date =
+        parseReminderDate(
+            value
+        ) ?: return value
+
+    val days =
+        ChronoUnit.DAYS.between(
+            LocalDate.now(),
+            date
+        )
+
+    return when (days) {
+
+        0L ->
+            "Today"
+
+        1L ->
+            "Tomorrow"
+
+        else ->
+            formatReminderDate(
+                value
+            )
+    }
+}
+
+private fun recurrenceSummaryText(
+    reminder: Reminder
+): String {
+
+    val repeatName =
+        reminder.repeatRule
+            .lowercase(
+                Locale.UK
+            )
+
+    val repeatUntil =
+        reminder.repeatUntilDate
+
+    return if (
+        repeatUntil != "None" &&
+        repeatUntil.isNotBlank() &&
+        parseReminderDate(
+            repeatUntil
+        ) != null
+    ) {
+
+        "Repeats $repeatName until ${formatReminderDate(repeatUntil)}"
+
+    } else {
+
+        "Repeats $repeatName"
+    }
+}
+
+private fun effectiveDueDate(
+    reminder: Reminder
+): LocalDate? {
+
+    if (
+        reminder.type.equals(
+            "Deadline",
+            ignoreCase = true
+        ) &&
+        reminder.deadlineDate != "None" &&
+        reminder.deadlineDate.isNotBlank()
+    ) {
+
+        val finalDeadline =
+            parseReminderDate(
+                reminder.deadlineDate
+            )
+
+        if (finalDeadline != null) {
+            return finalDeadline
+        }
+    }
+
+    return parseReminderDate(
+        reminder.date
+    )
 }
 
 private fun deadlineText(

@@ -108,6 +108,28 @@ class DoneForTodayReceiver : BroadcastReceiver() {
                                 currentReminder
                             )
 
+                    /*
+                     * No date change means this is the final
+                     * allowed occurrence. "Done for today"
+                     * should therefore finish the series.
+                     */
+                    if (
+                        nextReminder.date ==
+                        currentReminder.date
+                    ) {
+
+                        dao.updateReminder(
+                            currentReminder.copy(
+                                isCompleted = true,
+                                repeatRule = "None",
+                                repeatAnchorDate = "None",
+                                repeatUntilDate = "None"
+                            )
+                        )
+
+                        return@launch
+                    }
+
                     dao.updateReminderOccurrence(
                         reminderId =
                             reminderId,

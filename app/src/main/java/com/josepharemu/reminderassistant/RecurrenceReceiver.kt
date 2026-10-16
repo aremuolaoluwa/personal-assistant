@@ -69,6 +69,19 @@ class RecurrenceReceiver : BroadcastReceiver() {
                             currentReminder
                         )
 
+                /*
+                 * If the next occurrence would be after the
+                 * Repeat Until date, getNextOccurrence()
+                 * returns the current occurrence unchanged.
+                 * The series therefore stops here.
+                 */
+                if (
+                    nextReminder.date ==
+                    currentReminder.date
+                ) {
+                    return@launch
+                }
+
                 dao.updateReminderOccurrence(
                     reminderId =
                         reminderId,
