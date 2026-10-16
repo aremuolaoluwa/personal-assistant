@@ -1,8 +1,18 @@
 package com.josepharemu.reminderassistant
 
+import android.Manifest
+import android.app.AlarmManager
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -29,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -80,6 +91,29 @@ fun AddReminderScreen(
 
     val calendar = Calendar.getInstance()
 
+    val notificationPermissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { granted ->
+
+            if (granted) {
+
+                Toast.makeText(
+                    context,
+                    "Notification permission granted. Tap Save Reminder again.",
+                    Toast.LENGTH_LONG
+                ).show()
+
+            } else {
+
+                Toast.makeText(
+                    context,
+                    "Notifications must be allowed for reminders to alert you.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -106,7 +140,6 @@ fun AddReminderScreen(
             modifier = Modifier.height(24.dp)
         )
 
-        // TITLE
         Text(
             text = "Title",
             style = MaterialTheme.typography.titleMedium
@@ -122,7 +155,9 @@ fun AddReminderScreen(
                 title = it
             },
             placeholder = {
-                Text(text = "What do you need to remember?")
+                Text(
+                    text = "What do you need to remember?"
+                )
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
@@ -132,7 +167,6 @@ fun AddReminderScreen(
             modifier = Modifier.height(20.dp)
         )
 
-        // TYPE
         Text(
             text = "Type",
             style = MaterialTheme.typography.titleMedium
@@ -159,7 +193,6 @@ fun AddReminderScreen(
             modifier = Modifier.height(20.dp)
         )
 
-        // DATE
         Text(
             text = "Date",
             style = MaterialTheme.typography.titleMedium
@@ -192,8 +225,9 @@ fun AddReminderScreen(
             },
             modifier = Modifier.fillMaxWidth()
         ) {
+
             Text(
-                text = if (selectedDate.isEmpty()) {
+                text = if (selectedDate.isBlank()) {
                     "Choose Date"
                 } else {
                     selectedDate
@@ -205,7 +239,6 @@ fun AddReminderScreen(
             modifier = Modifier.height(20.dp)
         )
 
-        // TIME
         Text(
             text = "Time",
             style = MaterialTheme.typography.titleMedium
@@ -237,8 +270,9 @@ fun AddReminderScreen(
             },
             modifier = Modifier.fillMaxWidth()
         ) {
+
             Text(
-                text = if (selectedTime.isEmpty()) {
+                text = if (selectedTime.isBlank()) {
                     "Choose Time"
                 } else {
                     selectedTime
@@ -250,7 +284,6 @@ fun AddReminderScreen(
             modifier = Modifier.height(20.dp)
         )
 
-        // PRIORITY
         Text(
             text = "Priority",
             style = MaterialTheme.typography.titleMedium
@@ -276,7 +309,6 @@ fun AddReminderScreen(
             modifier = Modifier.height(20.dp)
         )
 
-        // CATEGORY
         Text(
             text = "Category",
             style = MaterialTheme.typography.titleMedium
@@ -308,7 +340,6 @@ fun AddReminderScreen(
             modifier = Modifier.height(20.dp)
         )
 
-        // REMINDER TIMING
         Text(
             text = "Remind Me",
             style = MaterialTheme.typography.titleMedium
@@ -339,7 +370,6 @@ fun AddReminderScreen(
             modifier = Modifier.height(20.dp)
         )
 
-        // NOTES
         Text(
             text = "Notes",
             style = MaterialTheme.typography.titleMedium
@@ -355,7 +385,9 @@ fun AddReminderScreen(
                 notes = it
             },
             placeholder = {
-                Text(text = "Add any useful information")
+                Text(
+                    text = "Add any useful information"
+                )
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -366,58 +398,135 @@ fun AddReminderScreen(
             modifier = Modifier.height(32.dp)
         )
 
-        // SAVE BUTTON
         Button(
             onClick = {
 
-                if (title.isBlank()) {
+                when {
 
-                    Toast.makeText(
-                        context,
-                        "Please enter a title",
-                        Toast.LENGTH_SHORT
-                    ).show()
-
-                } else if (selectedDate.isBlank()) {
-
-                    Toast.makeText(
-                        context,
-                        "Please choose a date",
-                        Toast.LENGTH_SHORT
-                    ).show()
-
-                } else {
-
-                    val reminder = Reminder(
-                        title = title.trim(),
-                        type = selectedType,
-                        date = selectedDate,
-                        time = selectedTime,
-                        priority = selectedPriority,
-                        category = selectedCategory,
-                        reminderTiming = selectedReminderTiming,
-                        notes = notes.trim()
-                    )
-
-                    coroutineScope.launch {
-
-                        database
-                            .reminderDao()
-                            .insertReminder(reminder)
+                    title.isBlank() -> {
 
                         Toast.makeText(
                             context,
-                            "Reminder saved",
+                            "Please enter a title",
                             Toast.LENGTH_SHORT
                         ).show()
+                    }
 
-                        onBack()
+                    selectedDate.isBlank() -> {
+
+                        Toast.makeText(
+                            context,
+                            "Please choose a date",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+
+                    selectedTime.isBlank() -> {
+
+                        Toast.makeText(
+                            context,
+                            "Please choose a time",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+
+                    Build.VERSION.SDK_INT >=
+                            Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.POST_NOTIFICATIONS
+                            ) != PackageManager.PERMISSION_GRANTED -> {
+
+                        notificationPermissionLauncher.launch(
+                            Manifest.permission.POST_NOTIFICATIONS
+                        )
+                    }
+
+                    Build.VERSION.SDK_INT >=
+                            Build.VERSION_CODES.S &&
+                            !(context.getSystemService(
+                                Context.ALARM_SERVICE
+                            ) as AlarmManager)
+                                .canScheduleExactAlarms() -> {
+
+                        Toast.makeText(
+                            context,
+                            "Please allow this app to set alarms and reminders, then return and tap Save again.",
+                            Toast.LENGTH_LONG
+                        ).show()
+
+                        val intent = Intent(
+                            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM
+                        ).apply {
+
+                            data = Uri.parse(
+                                "package:${context.packageName}"
+                            )
+                        }
+
+                        context.startActivity(intent)
+                    }
+
+                    else -> {
+
+                        val reminder = Reminder(
+                            title = title.trim(),
+                            type = selectedType,
+                            date = selectedDate,
+                            time = selectedTime,
+                            priority = selectedPriority,
+                            category = selectedCategory,
+                            reminderTiming = selectedReminderTiming,
+                            notes = notes.trim()
+                        )
+
+                        coroutineScope.launch {
+
+                            val newId =
+                                database
+                                    .reminderDao()
+                                    .insertReminder(reminder)
+
+                            val savedReminder =
+                                reminder.copy(
+                                    id = newId.toInt()
+                                )
+
+                            val scheduled =
+                                ReminderScheduler
+                                    .scheduleReminder(
+                                        context,
+                                        savedReminder
+                                    )
+
+                            if (scheduled) {
+
+                                Toast.makeText(
+                                    context,
+                                    "Reminder saved and scheduled",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+
+                            } else {
+
+                                Toast.makeText(
+                                    context,
+                                    "Reminder saved, but the notification could not be scheduled.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+
+                            onBack()
+                        }
                     }
                 }
             },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(text = "Save Reminder")
+
+            Text(
+                text = "Save Reminder"
+            )
         }
 
         Spacer(
@@ -425,7 +534,6 @@ fun AddReminderScreen(
         )
     }
 }
-
 
 @Composable
 fun SimpleDropdown(
@@ -448,7 +556,10 @@ fun SimpleDropdown(
             },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(text = selectedValue)
+
+            Text(
+                text = selectedValue
+            )
         }
 
         DropdownMenu(
@@ -462,10 +573,14 @@ fun SimpleDropdown(
 
                 DropdownMenuItem(
                     text = {
-                        Text(text = option)
+                        Text(
+                            text = option
+                        )
                     },
                     onClick = {
+
                         onValueSelected(option)
+
                         expanded = false
                     }
                 )

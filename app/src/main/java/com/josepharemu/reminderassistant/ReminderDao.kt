@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 interface ReminderDao {
 
     @Insert
-    suspend fun insertReminder(reminder: Reminder)
+    suspend fun insertReminder(reminder: Reminder): Long
 
     @Update
     suspend fun updateReminder(reminder: Reminder)
