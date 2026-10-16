@@ -124,7 +124,8 @@ fun HomeScreen(
 
     val importantReminders = reminders.filter {
         it.date != today &&
-                (it.priority == "Important" || it.priority == "Critical")
+                (it.priority == "Important" ||
+                        it.priority == "Critical")
     }
 
     val upcomingReminders = reminders.filter {
@@ -144,25 +145,18 @@ fun HomeScreen(
             style = MaterialTheme.typography.headlineMedium
         )
 
-        Spacer(
-            modifier = Modifier.height(32.dp)
-        )
+        Spacer(modifier = Modifier.height(32.dp))
 
-        // TODAY
         Text(
             text = "Today",
             style = MaterialTheme.typography.titleLarge
         )
 
-        Spacer(
-            modifier = Modifier.height(8.dp)
-        )
+        Spacer(modifier = Modifier.height(8.dp))
 
         if (todayReminders.isEmpty()) {
 
-            Text(
-                text = "No reminders for today"
-            )
+            Text(text = "No reminders for today")
 
         } else {
 
@@ -173,6 +167,11 @@ fun HomeScreen(
 
                     onDone = {
 
+                        ReminderScheduler.cancelReminder(
+                            context,
+                            reminder.id
+                        )
+
                         coroutineScope.launch {
 
                             database
@@ -187,6 +186,11 @@ fun HomeScreen(
 
                     onDelete = {
 
+                        ReminderScheduler.cancelReminder(
+                            context,
+                            reminder.id
+                        )
+
                         coroutineScope.launch {
 
                             database
@@ -196,31 +200,22 @@ fun HomeScreen(
                     }
                 )
 
-                Spacer(
-                    modifier = Modifier.height(8.dp)
-                )
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
 
-        Spacer(
-            modifier = Modifier.height(24.dp)
-        )
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // IMPORTANT
         Text(
             text = "Important",
             style = MaterialTheme.typography.titleLarge
         )
 
-        Spacer(
-            modifier = Modifier.height(8.dp)
-        )
+        Spacer(modifier = Modifier.height(8.dp))
 
         if (importantReminders.isEmpty()) {
 
-            Text(
-                text = "Nothing important yet"
-            )
+            Text(text = "Nothing important yet")
 
         } else {
 
@@ -231,6 +226,11 @@ fun HomeScreen(
 
                     onDone = {
 
+                        ReminderScheduler.cancelReminder(
+                            context,
+                            reminder.id
+                        )
+
                         coroutineScope.launch {
 
                             database
@@ -245,6 +245,11 @@ fun HomeScreen(
 
                     onDelete = {
 
+                        ReminderScheduler.cancelReminder(
+                            context,
+                            reminder.id
+                        )
+
                         coroutineScope.launch {
 
                             database
@@ -254,31 +259,22 @@ fun HomeScreen(
                     }
                 )
 
-                Spacer(
-                    modifier = Modifier.height(8.dp)
-                )
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
 
-        Spacer(
-            modifier = Modifier.height(24.dp)
-        )
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // COMING UP
         Text(
             text = "Coming Up",
             style = MaterialTheme.typography.titleLarge
         )
 
-        Spacer(
-            modifier = Modifier.height(8.dp)
-        )
+        Spacer(modifier = Modifier.height(8.dp))
 
         if (upcomingReminders.isEmpty()) {
 
-            Text(
-                text = "No upcoming items"
-            )
+            Text(text = "No upcoming items")
 
         } else {
 
@@ -289,6 +285,11 @@ fun HomeScreen(
 
                     onDone = {
 
+                        ReminderScheduler.cancelReminder(
+                            context,
+                            reminder.id
+                        )
+
                         coroutineScope.launch {
 
                             database
@@ -303,6 +304,11 @@ fun HomeScreen(
 
                     onDelete = {
 
+                        ReminderScheduler.cancelReminder(
+                            context,
+                            reminder.id
+                        )
+
                         coroutineScope.launch {
 
                             database
@@ -312,41 +318,29 @@ fun HomeScreen(
                     }
                 )
 
-                Spacer(
-                    modifier = Modifier.height(8.dp)
-                )
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
 
-        Spacer(
-            modifier = Modifier.height(32.dp)
-        )
+        Spacer(modifier = Modifier.height(32.dp))
 
         Button(
             onClick = onAddReminder,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(
-                text = "+ Add Reminder"
-            )
+            Text(text = "+ Add Reminder")
         }
 
-        Spacer(
-            modifier = Modifier.height(12.dp)
-        )
+        Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedButton(
             onClick = onOpenCompleted,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(
-                text = "Completed"
-            )
+            Text(text = "Completed")
         }
 
-        Spacer(
-            modifier = Modifier.height(24.dp)
-        )
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -370,9 +364,7 @@ fun ReminderCard(
                 style = MaterialTheme.typography.titleMedium
             )
 
-            Spacer(
-                modifier = Modifier.height(4.dp)
-            )
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 text = "${reminder.type} • ${reminder.priority}"
@@ -395,22 +387,17 @@ fun ReminderCard(
 
             if (reminder.notes.isNotBlank()) {
 
-                Spacer(
-                    modifier = Modifier.height(6.dp)
-                )
+                Spacer(modifier = Modifier.height(6.dp))
 
-                Text(
-                    text = reminder.notes
-                )
+                Text(text = reminder.notes)
             }
 
-            Spacer(
-                modifier = Modifier.height(16.dp)
-            )
+            Spacer(modifier = Modifier.height(16.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement =
+                    Arrangement.spacedBy(12.dp)
             ) {
 
                 Button(
@@ -436,6 +423,7 @@ fun ReminderCard(
 fun HomeScreenPreview() {
 
     PersonalReminderAssistantTheme {
+
         HomeScreen(
             onAddReminder = {},
             onOpenCompleted = {}

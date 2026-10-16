@@ -1,6 +1,7 @@
 package com.josepharemu.reminderassistant
 
 import android.app.AlarmManager
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -24,7 +25,6 @@ object ReminderScheduler {
         reminder: Reminder
     ): Boolean {
 
-        // A notification cannot be scheduled without a time.
         if (reminder.time.isBlank()) {
             return false
         }
@@ -41,13 +41,9 @@ object ReminderScheduler {
                 timeFormatter
             )
 
-            LocalDateTime.of(
-                date,
-                time
-            )
+            LocalDateTime.of(date, time)
 
         } catch (exception: Exception) {
-
             return false
         }
 
@@ -85,7 +81,6 @@ object ReminderScheduler {
                 .toInstant()
                 .toEpochMilli()
 
-        // Do not schedule notifications in the past.
         if (triggerTime <= System.currentTimeMillis()) {
             return false
         }
@@ -97,7 +92,6 @@ object ReminderScheduler {
                         "${reminder.date} at ${reminder.time}"
 
             } else {
-
                 reminder.notes
             }
 
@@ -136,10 +130,6 @@ object ReminderScheduler {
                 Context.ALARM_SERVICE
             ) as AlarmManager
 
-        /*
-         * Android 12+ requires special access
-         * for exact alarms.
-         */
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
 
             if (alarmManager.canScheduleExactAlarms()) {
@@ -152,12 +142,6 @@ object ReminderScheduler {
 
             } else {
 
-                /*
-                 * Fallback if exact alarm permission
-                 * has not yet been granted.
-                 *
-                 * This alarm can be delayed by Android.
-                 */
                 alarmManager.setAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     triggerTime,
@@ -203,11 +187,17 @@ object ReminderScheduler {
                     Context.ALARM_SERVICE
                 ) as AlarmManager
 
-            alarmManager.cancel(
-                pendingIntent
-            )
+            alarmManager.cancel(pendingIntent)
 
             pendingIntent.cancel()
         }
+
+        // Also remove a notification if it has already appeared.
+        val notificationManager =
+            context.getSystemService(
+                Context.NOTIFICATION_SERVICE
+            ) as NotificationManager
+
+        notificationManager.cancel(reminderId)
     }
 }

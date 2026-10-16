@@ -58,18 +58,14 @@ fun CompletedScreen(
             Text(text = "← Back")
         }
 
-        Spacer(
-            modifier = Modifier.height(8.dp)
-        )
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
             text = "Completed",
             style = MaterialTheme.typography.headlineMedium
         )
 
-        Spacer(
-            modifier = Modifier.height(24.dp)
-        )
+        Spacer(modifier = Modifier.height(24.dp))
 
         if (completedReminders.isEmpty()) {
 
@@ -86,19 +82,31 @@ fun CompletedScreen(
 
                     onRestore = {
 
+                        val restoredReminder =
+                            reminder.copy(
+                                isCompleted = false
+                            )
+
                         coroutineScope.launch {
 
                             database
                                 .reminderDao()
-                                .updateReminder(
-                                    reminder.copy(
-                                        isCompleted = false
-                                    )
+                                .updateReminder(restoredReminder)
+
+                            ReminderScheduler
+                                .scheduleReminder(
+                                    context,
+                                    restoredReminder
                                 )
                         }
                     },
 
                     onDelete = {
+
+                        ReminderScheduler.cancelReminder(
+                            context,
+                            reminder.id
+                        )
 
                         coroutineScope.launch {
 
@@ -109,9 +117,7 @@ fun CompletedScreen(
                     }
                 )
 
-                Spacer(
-                    modifier = Modifier.height(12.dp)
-                )
+                Spacer(modifier = Modifier.height(12.dp))
             }
         }
     }
@@ -137,9 +143,7 @@ fun CompletedReminderCard(
                 style = MaterialTheme.typography.titleMedium
             )
 
-            Spacer(
-                modifier = Modifier.height(4.dp)
-            )
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 text = "${reminder.type} • ${reminder.priority}"
@@ -162,22 +166,17 @@ fun CompletedReminderCard(
 
             if (reminder.notes.isNotBlank()) {
 
-                Spacer(
-                    modifier = Modifier.height(6.dp)
-                )
+                Spacer(modifier = Modifier.height(6.dp))
 
-                Text(
-                    text = reminder.notes
-                )
+                Text(text = reminder.notes)
             }
 
-            Spacer(
-                modifier = Modifier.height(16.dp)
-            )
+            Spacer(modifier = Modifier.height(16.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement =
+                    Arrangement.spacedBy(12.dp)
             ) {
 
                 Button(
