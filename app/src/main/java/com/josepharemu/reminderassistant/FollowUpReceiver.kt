@@ -229,6 +229,21 @@ class FollowUpReceiver : BroadcastReceiver() {
                             "REMINDER_PRIORITY",
                             reminder.priority
                         )
+
+                        putExtra(
+                            "REMINDER_TYPE",
+                            reminder.type
+                        )
+
+                        putExtra(
+                            "REMINDER_TIMING",
+                            "Follow-up"
+                        )
+
+                        putExtra(
+                            "IS_FOLLOW_UP",
+                            true
+                        )
                     }
 
                 val snoozePendingIntent =
@@ -239,6 +254,30 @@ class FollowUpReceiver : BroadcastReceiver() {
                         PendingIntent.FLAG_UPDATE_CURRENT or
                             PendingIntent.FLAG_IMMUTABLE
                     )
+
+                val doneButtonText =
+                    when (reminder.type) {
+
+                        "Task",
+                        "Deadline" ->
+                            "Completed"
+
+                        else ->
+                            "Done"
+                    }
+
+                val keepActiveButtonText =
+                    when (reminder.type) {
+
+                        "Event" ->
+                            "Still relevant"
+
+                        "Reminder" ->
+                            "Keep active"
+
+                        else ->
+                            "Still working"
+                    }
 
                 val notification =
                     NotificationCompat.Builder(
@@ -276,12 +315,12 @@ class FollowUpReceiver : BroadcastReceiver() {
                         )
                         .addAction(
                             0,
-                            "Completed",
+                            doneButtonText,
                             donePendingIntent
                         )
                         .addAction(
                             0,
-                            "Still working",
+                            keepActiveButtonText,
                             stillWorkingPendingIntent
                         )
                         .addAction(

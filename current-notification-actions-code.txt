@@ -1,0 +1,2694 @@
+package com.josepharemu.reminderassistant
+import android.app.AlarmManager
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
+object ReminderScheduler {
+
+    private val dateFormatter =
+        DateTimeFormatter.ofPattern("dd/MM/yyyy")
+
+    private val timeFormatter =
+        DateTimeFormatter.ofPattern("HH:mm")
+
+    private val timingCodes = mapOf(
+        "At time of event" to 1,
+        "10 minutes before" to 2,
+        "30 minutes before" to 3,
+        "1 hour before" to 4,
+        "2 hours before" to 5,
+        "1 day before" to 6,
+        "3 days before" to 7,
+        "1 week before" to 8
+    )
+
+    /*
+     * Deadline escalation alarms use their own request-code
+     * range so they never overwrite normal occurrence alarms.
+     */
+    private val escalationTimingCodes = mapOf(
+        "At time of event" to 21,
+        "10 minutes before" to 22,
+        "30 minutes before" to 23,
+        "1 hour before" to 24,
+        "2 hours before" to 25,
+        "1 day before" to 26,
+        "3 days before" to 27,
+        "1 week before" to 28
+    )
+
+    private const val RECURRENCE_CODE = 90
+    private const val FOLLOW_UP_CODE = 95
+
+    private fun getFollowUpDelayMinutes(
+        priority: String
+    ): Long {
+
+        return when (priority) {
+
+            "Critical" ->
+                30L
+
+            "Important" ->
+                60L
+
+            else ->
+                120L
+        }
+    }
+
+    fun scheduleReminder(
+        context: Context,
+        reminder: Reminder
+    ): Boolean {
+
+        if (reminder.time.isBlank()) {
+            return false
+        }
+
+        val eventDateTime =
+            parseEventDateTime(reminder)
+                ?: return false
+
+        /*
+         * A recurring reminder must never schedule an
+         * occurrence after its Repeat Until date.
+         */
+        if (
+            isRecurring(reminder.repeatRule) &&
+            !isOccurrenceWithinRepeatLimit(reminder)
+        ) {
+            return false
+        }
+
+        val selectedTimings =
+            parseReminderTimings(
+                reminder.reminderTiming
+            )
+
+        val deadlineDateTime =
+            if (
+                reminder.escalationEnabled &&
+                reminder.type.equals(
+                    "Deadline",
+                    ignoreCase = true
+                )
+            ) {
+                parseDeadlineDateTime(
+                    reminder
+                )
+            } else {
+                null
+            }
+
+        val escalationTimings =
+            if (deadlineDateTime != null) {
+                getEscalationTimings(
+                    reminder.priority
+                )
+            } else {
+                emptyList()
+            }
+
+        val currentOccurrenceIsDeadline =
+            deadlineDateTime != null &&
+                eventDateTime ==
+                deadlineDateTime
+
+        var scheduledAtLeastOneNotification =
+            false
+
+        /*
+         * Keep the user's manually selected notification
+         * timings. On the final deadline occurrence, skip
+         * only timings that automatic escalation will
+         * already provide so the user does not receive
+         * duplicate notifications at the same moment.
+         */
+        selectedTimings.forEach { timing ->
+
+            val coveredByEscalation =
+                currentOccurrenceIsDeadline &&
+                    timing in escalationTimings
+
+            if (!coveredByEscalation) {
+
+                val notificationDateTime =
+                    calculateNotificationTime(
+                        eventDateTime,
+                        timing
+                    )
+
+                val triggerTime =
+                    notificationDateTime
+                        .atZone(
+                            ZoneId.systemDefault()
+                        )
+                        .toInstant()
+                        .toEpochMilli()
+
+                if (
+                    triggerTime >
+                    System.currentTimeMillis()
+                ) {
+
+                    scheduleSingleNotificationAlarm(
+                        context = context,
+                        reminder = reminder,
+                        timing = timing,
+                        triggerTime = triggerTime
+                    )
+
+                    scheduledAtLeastOneNotification =
+                        true
+                }
+            }
+        }
+
+        /*
+         * Automatic escalation is calculated from the
+         * final deadline, not from the next recurring
+         * occurrence. The user's priority controls how
+         * intensive the extra alerts become.
+         */
+        if (deadlineDateTime != null) {
+
+            escalationTimings.forEach { timing ->
+
+                val notificationDateTime =
+                    calculateNotificationTime(
+                        deadlineDateTime,
+                        timing
+                    )
+
+                val triggerTime =
+                    notificationDateTime
+                        .atZone(
+                            ZoneId.systemDefault()
+                        )
+                        .toInstant()
+                        .toEpochMilli()
+
+                if (
+                    triggerTime >
+                    System.currentTimeMillis()
+                ) {
+
+                    scheduleSingleDeadlineEscalationAlarm(
+                        context = context,
+                        reminder = reminder,
+                        timing = timing,
+                        triggerTime = triggerTime
+                    )
+
+                    scheduledAtLeastOneNotification =
+                        true
+                }
+            }
+        }
+
+        if (
+            reminder.followUpUntilCompleted &&
+            !isRecurring(reminder.repeatRule)
+        ) {
+
+            val followUpBaseDateTime =
+                if (
+                    reminder.type.equals(
+                        "Deadline",
+                        ignoreCase = true
+                    )
+                ) {
+                    parseDeadlineDateTime(reminder)
+                        ?: eventDateTime
+                } else {
+                    eventDateTime
+                }
+
+            val now =
+                LocalDateTime.now()
+
+            val followUpDelayMinutes =
+                getFollowUpDelayMinutes(
+                    reminder.priority
+                )
+
+            val firstFollowUpDateTime =
+                if (
+                    followUpBaseDateTime.isAfter(now)
+                ) {
+                    followUpBaseDateTime.plusMinutes(
+                        followUpDelayMinutes
+                    )
+                } else {
+                    now.plusMinutes(
+                        followUpDelayMinutes
+                    )
+                }
+
+            val followUpTriggerTime =
+                firstFollowUpDateTime
+                    .atZone(
+                        ZoneId.systemDefault()
+                    )
+                    .toInstant()
+                    .toEpochMilli()
+
+            scheduleFollowUpAlarm(
+                context = context,
+                reminderId = reminder.id,
+                triggerTime = followUpTriggerTime
+            )
+
+            scheduledAtLeastOneNotification =
+                true
+        }
+
+        if (
+            isRecurring(reminder.repeatRule) &&
+            hasNextOccurrence(reminder)
+        ) {
+
+            val eventTriggerTime =
+                eventDateTime
+                    .atZone(
+                        ZoneId.systemDefault()
+                    )
+                    .toInstant()
+                    .toEpochMilli()
+
+            if (
+                eventTriggerTime >
+                System.currentTimeMillis()
+            ) {
+
+                scheduleRecurrenceAlarm(
+                    context = context,
+                    reminder = reminder,
+                    triggerTime = eventTriggerTime
+                )
+            }
+        }
+
+        return scheduledAtLeastOneNotification
+    }
+
+    private fun scheduleSingleNotificationAlarm(
+        context: Context,
+        reminder: Reminder,
+        timing: String,
+        triggerTime: Long
+    ) {
+
+        val notificationId =
+            createAlarmId(
+                reminder.id,
+                timing
+            )
+
+        val message =
+            if (reminder.notes.isBlank()) {
+
+                "$timing • ${reminder.type} scheduled " +
+                        "for ${reminder.date} at ${reminder.time}"
+
+            } else {
+
+                "$timing • ${reminder.notes}"
+            }
+
+        val intent =
+            Intent(
+                context,
+                ReminderReceiver::class.java
+            ).apply {
+
+                putExtra(
+                    "REMINDER_ID",
+                    reminder.id
+                )
+
+                putExtra(
+                    "NOTIFICATION_ID",
+                    notificationId
+                )
+
+                putExtra(
+                    "REMINDER_TITLE",
+                    reminder.title
+                )
+
+                putExtra(
+                    "REMINDER_MESSAGE",
+                    message
+                )
+
+                putExtra(
+                    "REMINDER_REPEAT_RULE",
+                    reminder.repeatRule
+                )
+
+                putExtra(
+                    "OCCURRENCE_DATE",
+                    reminder.date
+                )
+
+                putExtra(
+                    "FOLLOW_UP_ENABLED",
+                    reminder.followUpUntilCompleted
+                )
+
+                putExtra(
+                    "REMINDER_PRIORITY",
+                    reminder.priority
+                )
+            }
+
+        val pendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                notificationId,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_IMMUTABLE
+            )
+
+        scheduleAlarm(
+            context = context,
+            triggerTime = triggerTime,
+            pendingIntent = pendingIntent
+        )
+    }
+
+    private fun scheduleSingleDeadlineEscalationAlarm(
+        context: Context,
+        reminder: Reminder,
+        timing: String,
+        triggerTime: Long
+    ) {
+
+        val notificationId =
+            createEscalationAlarmId(
+                reminder.id,
+                timing
+            )
+
+        val timingText =
+            when (timing) {
+
+                "At time of event" ->
+                    "Deadline reached"
+
+                else ->
+                    timing
+            }
+
+        val message =
+            "$timingText • Final deadline " +
+                "${reminder.deadlineDate} at " +
+                reminder.deadlineTime
+
+        val intent =
+            Intent(
+                context,
+                ReminderReceiver::class.java
+            ).apply {
+
+                putExtra(
+                    "REMINDER_ID",
+                    reminder.id
+                )
+
+                putExtra(
+                    "NOTIFICATION_ID",
+                    notificationId
+                )
+
+                putExtra(
+                    "REMINDER_TITLE",
+                    reminder.title
+                )
+
+                putExtra(
+                    "REMINDER_MESSAGE",
+                    message
+                )
+
+                /*
+                 * Escalation notifications refer to the whole
+                 * deadline, not one recurring occurrence.
+                 * Therefore "Done" completes the deadline
+                 * reminder instead of advancing one week.
+                 */
+                putExtra(
+                    "REMINDER_REPEAT_RULE",
+                    "None"
+                )
+
+                putExtra(
+                    "OCCURRENCE_DATE",
+                    reminder.deadlineDate
+                )
+
+                putExtra(
+                    "FOLLOW_UP_ENABLED",
+                    reminder.followUpUntilCompleted
+                )
+
+                putExtra(
+                    "REMINDER_PRIORITY",
+                    reminder.priority
+                )
+            }
+
+        val pendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                notificationId,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                    PendingIntent.FLAG_IMMUTABLE
+            )
+
+        scheduleAlarm(
+            context = context,
+            triggerTime = triggerTime,
+            pendingIntent = pendingIntent
+        )
+    }
+
+    private fun getEscalationTimings(
+        priority: String
+    ): List<String> {
+
+        return when (priority) {
+
+            "Critical" ->
+                listOf(
+                    "1 week before",
+                    "3 days before",
+                    "1 day before",
+                    "2 hours before",
+                    "1 hour before",
+                    "30 minutes before",
+                    "10 minutes before",
+                    "At time of event"
+                )
+
+            "Important" ->
+                listOf(
+                    "3 days before",
+                    "1 day before",
+                    "2 hours before",
+                    "30 minutes before",
+                    "At time of event"
+                )
+
+            else ->
+                listOf(
+                    "1 day before",
+                    "1 hour before",
+                    "At time of event"
+                )
+        }
+    }
+
+    private fun scheduleFollowUpAlarm(
+        context: Context,
+        reminderId: Int,
+        triggerTime: Long
+    ) {
+
+        val followUpAlarmId =
+            createFollowUpNotificationId(
+                reminderId
+            )
+
+        val intent =
+            Intent(
+                context,
+                FollowUpReceiver::class.java
+            ).apply {
+
+                putExtra(
+                    "REMINDER_ID",
+                    reminderId
+                )
+            }
+
+        val pendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                followUpAlarmId,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                    PendingIntent.FLAG_IMMUTABLE
+            )
+
+        scheduleAlarm(
+            context = context,
+            triggerTime = triggerTime,
+            pendingIntent = pendingIntent
+        )
+    }
+
+    fun scheduleNextFollowUp(
+        context: Context,
+        reminder: Reminder
+    ): Boolean {
+
+        if (
+            reminder.isCompleted ||
+            !reminder.followUpUntilCompleted ||
+            isRecurring(reminder.repeatRule)
+        ) {
+            return false
+        }
+
+        val triggerTime =
+            System.currentTimeMillis() +
+                (
+                    getFollowUpDelayMinutes(
+                        reminder.priority
+                    ) *
+                        60 *
+                        1000L
+                )
+
+        scheduleFollowUpAlarm(
+            context = context,
+            reminderId = reminder.id,
+            triggerTime = triggerTime
+        )
+
+        return true
+    }
+
+    private fun scheduleRecurrenceAlarm(
+        context: Context,
+        reminder: Reminder,
+        triggerTime: Long
+    ) {
+
+        val recurrenceAlarmId =
+            createRecurrenceAlarmId(
+                reminder.id
+            )
+
+        val intent =
+            Intent(
+                context,
+                RecurrenceReceiver::class.java
+            ).apply {
+
+                putExtra(
+                    "REMINDER_ID",
+                    reminder.id
+                )
+            }
+
+        val pendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                recurrenceAlarmId,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_IMMUTABLE
+            )
+
+        scheduleAlarm(
+            context = context,
+            triggerTime = triggerTime,
+            pendingIntent = pendingIntent
+        )
+    }
+
+    private fun scheduleAlarm(
+        context: Context,
+        triggerTime: Long,
+        pendingIntent: PendingIntent
+    ) {
+
+        val alarmManager =
+            context.getSystemService(
+                Context.ALARM_SERVICE
+            ) as AlarmManager
+
+        if (
+            Build.VERSION.SDK_INT >=
+            Build.VERSION_CODES.S
+        ) {
+
+            if (
+                alarmManager.canScheduleExactAlarms()
+            ) {
+
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerTime,
+                    pendingIntent
+                )
+
+            } else {
+
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerTime,
+                    pendingIntent
+                )
+            }
+
+        } else {
+
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerTime,
+                pendingIntent
+            )
+        }
+    }
+
+    private fun calculateNotificationTime(
+        eventDateTime: LocalDateTime,
+        timing: String
+    ): LocalDateTime {
+
+        return when (timing) {
+
+            "10 minutes before" ->
+                eventDateTime.minusMinutes(10)
+
+            "30 minutes before" ->
+                eventDateTime.minusMinutes(30)
+
+            "1 hour before" ->
+                eventDateTime.minusHours(1)
+
+            "2 hours before" ->
+                eventDateTime.minusHours(2)
+
+            "1 day before" ->
+                eventDateTime.minusDays(1)
+
+            "3 days before" ->
+                eventDateTime.minusDays(3)
+
+            "1 week before" ->
+                eventDateTime.minusWeeks(1)
+
+            else ->
+                eventDateTime
+        }
+    }
+
+    /*
+     * Returns exactly one next occurrence.
+     *
+     * This is used by "Done for today" and by
+     * the automatic recurrence receiver.
+     */
+    fun getNextOccurrence(
+        reminder: Reminder
+    ): Reminder {
+
+        if (!isRecurring(reminder.repeatRule)) {
+            return reminder
+        }
+
+        val currentDate =
+            parseDate(reminder.date)
+                ?: return reminder
+
+        val anchorDate =
+            resolveAnchorDate(reminder)
+                ?: currentDate
+
+        val nextDate =
+            when (reminder.repeatRule) {
+
+                "Daily" -> {
+                    currentDate.plusDays(1)
+                }
+
+                "Weekly" -> {
+                    currentDate.plusWeeks(1)
+                }
+
+                "Monthly" -> {
+
+                    val nextMonth =
+                        YearMonth
+                            .from(currentDate)
+                            .plusMonths(1)
+
+                    val desiredDay =
+                        anchorDate.dayOfMonth
+
+                    val actualDay =
+                        minOf(
+                            desiredDay,
+                            nextMonth.lengthOfMonth()
+                        )
+
+                    LocalDate.of(
+                        nextMonth.year,
+                        nextMonth.monthValue,
+                        actualDay
+                    )
+                }
+
+                "Yearly" -> {
+
+                    val nextYear =
+                        currentDate.year + 1
+
+                    val anchorMonth =
+                        anchorDate.monthValue
+
+                    val targetMonth =
+                        YearMonth.of(
+                            nextYear,
+                            anchorMonth
+                        )
+
+                    val desiredDay =
+                        anchorDate.dayOfMonth
+
+                    val actualDay =
+                        minOf(
+                            desiredDay,
+                            targetMonth.lengthOfMonth()
+                        )
+
+                    LocalDate.of(
+                        nextYear,
+                        anchorMonth,
+                        actualDay
+                    )
+                }
+
+                else -> {
+                    currentDate
+                }
+            }
+
+        val repeatUntilDate =
+            parseRepeatUntilDate(reminder)
+
+        /*
+         * Returning the same reminder is deliberate.
+         * Existing callers already use the date change to
+         * determine whether a recurrence was advanced.
+         */
+        if (
+            repeatUntilDate != null &&
+            nextDate.isAfter(repeatUntilDate)
+        ) {
+            return reminder
+        }
+
+        return reminder.copy(
+            date =
+                nextDate.format(
+                    dateFormatter
+                ),
+
+            repeatAnchorDate =
+                anchorDate.format(
+                    dateFormatter
+                )
+        )
+    }
+
+    /**
+     * True when another occurrence exists without crossing
+     * the optional Repeat Until date.
+     */
+    fun hasNextOccurrence(
+        reminder: Reminder
+    ): Boolean {
+
+        if (!isRecurring(reminder.repeatRule)) {
+            return false
+        }
+
+        val nextReminder =
+            getNextOccurrence(reminder)
+
+        return nextReminder.date !=
+                reminder.date
+    }
+
+    /**
+     * True when the current occurrence is the last allowed
+     * occurrence in a limited recurring series.
+     */
+    fun isFinalRecurringOccurrence(
+        reminder: Reminder
+    ): Boolean {
+
+        return isRecurring(reminder.repeatRule) &&
+                !hasNextOccurrence(reminder)
+    }
+
+    /*
+     * Used after a phone restart.
+     *
+     * If several occurrences were missed while
+     * the phone was off, keep advancing until
+     * the next event is genuinely in the future.
+     */
+    fun moveRecurringReminderToFuture(
+        reminder: Reminder
+    ): Reminder {
+
+        if (!isRecurring(reminder.repeatRule)) {
+            return reminder
+        }
+
+        var workingReminder =
+            ensureAnchorDate(reminder)
+
+        var eventDateTime =
+            parseEventDateTime(
+                workingReminder
+            ) ?: return workingReminder
+
+        val now =
+            LocalDateTime.now()
+
+        var safetyCounter = 0
+
+        while (
+            !eventDateTime.isAfter(now) &&
+            safetyCounter < 10000
+        ) {
+
+            val nextReminder =
+                getNextOccurrence(
+                    workingReminder
+                )
+
+            if (
+                nextReminder.date ==
+                workingReminder.date
+            ) {
+                break
+            }
+
+            workingReminder =
+                nextReminder
+
+            eventDateTime =
+                parseEventDateTime(
+                    workingReminder
+                ) ?: break
+
+            safetyCounter++
+        }
+
+        return workingReminder
+    }
+
+    private fun ensureAnchorDate(
+        reminder: Reminder
+    ): Reminder {
+
+        if (!isRecurring(reminder.repeatRule)) {
+            return reminder
+        }
+
+        if (
+            reminder.repeatAnchorDate != "None" &&
+            parseDate(
+                reminder.repeatAnchorDate
+            ) != null
+        ) {
+            return reminder
+        }
+
+        return reminder.copy(
+            repeatAnchorDate =
+                reminder.date
+        )
+    }
+
+    private fun resolveAnchorDate(
+        reminder: Reminder
+    ): LocalDate? {
+
+        if (
+            reminder.repeatAnchorDate != "None"
+        ) {
+
+            val storedAnchor =
+                parseDate(
+                    reminder.repeatAnchorDate
+                )
+
+            if (storedAnchor != null) {
+                return storedAnchor
+            }
+        }
+
+        return parseDate(
+            reminder.date
+        )
+    }
+
+    private fun parseRepeatUntilDate(
+        reminder: Reminder
+    ): LocalDate? {
+
+        if (
+            reminder.repeatUntilDate.isBlank() ||
+            reminder.repeatUntilDate == "None"
+        ) {
+            return null
+        }
+
+        return parseDate(
+            reminder.repeatUntilDate
+        )
+    }
+
+    private fun isOccurrenceWithinRepeatLimit(
+        reminder: Reminder
+    ): Boolean {
+
+        val repeatUntilDate =
+            parseRepeatUntilDate(reminder)
+                ?: return true
+
+        val occurrenceDate =
+            parseDate(reminder.date)
+                ?: return false
+
+        return !occurrenceDate
+            .isAfter(repeatUntilDate)
+    }
+
+    private fun parseDate(
+        value: String
+    ): LocalDate? {
+
+        return try {
+
+            LocalDate.parse(
+                value,
+                dateFormatter
+            )
+
+        } catch (
+            exception: Exception
+        ) {
+
+            null
+        }
+    }
+
+    private fun parseDeadlineDateTime(
+        reminder: Reminder
+    ): LocalDateTime? {
+
+        if (
+            reminder.deadlineDate.isBlank() ||
+            reminder.deadlineDate == "None" ||
+            reminder.deadlineTime.isBlank() ||
+            reminder.deadlineTime == "None"
+        ) {
+            return null
+        }
+
+        return try {
+
+            val date =
+                LocalDate.parse(
+                    reminder.deadlineDate,
+                    dateFormatter
+                )
+
+            val time =
+                LocalTime.parse(
+                    reminder.deadlineTime,
+                    timeFormatter
+                )
+
+            LocalDateTime.of(
+                date,
+                time
+            )
+
+        } catch (
+            exception: Exception
+        ) {
+
+            null
+        }
+    }
+
+    private fun parseEventDateTime(
+        reminder: Reminder
+    ): LocalDateTime? {
+
+        return try {
+
+            val date =
+                LocalDate.parse(
+                    reminder.date,
+                    dateFormatter
+                )
+
+            val time =
+                LocalTime.parse(
+                    reminder.time,
+                    timeFormatter
+                )
+
+            LocalDateTime.of(
+                date,
+                time
+            )
+
+        } catch (
+            exception: Exception
+        ) {
+
+            null
+        }
+    }
+
+    fun isRecurring(
+        repeatRule: String
+    ): Boolean {
+
+        return repeatRule ==
+                "Daily" ||
+                repeatRule ==
+                "Weekly" ||
+                repeatRule ==
+                "Monthly" ||
+                repeatRule ==
+                "Yearly"
+    }
+
+    fun cancelReminder(
+        context: Context,
+        reminderId: Int
+    ) {
+
+        val alarmManager =
+            context.getSystemService(
+                Context.ALARM_SERVICE
+            ) as AlarmManager
+
+        val notificationManager =
+            context.getSystemService(
+                Context.NOTIFICATION_SERVICE
+            ) as NotificationManager
+
+        timingCodes.forEach { (timing, _) ->
+
+            val alarmId =
+                createAlarmId(
+                    reminderId,
+                    timing
+                )
+
+            val reminderIntent =
+                Intent(
+                    context,
+                    ReminderReceiver::class.java
+                )
+
+            val normalPendingIntent =
+                PendingIntent.getBroadcast(
+                    context,
+                    alarmId,
+                    reminderIntent,
+                    PendingIntent.FLAG_NO_CREATE or
+                            PendingIntent.FLAG_IMMUTABLE
+                )
+
+            if (
+                normalPendingIntent != null
+            ) {
+
+                alarmManager.cancel(
+                    normalPendingIntent
+                )
+
+                normalPendingIntent.cancel()
+            }
+
+            val snoozeAlarmId =
+                createSnoozeAlarmRequestCode(
+                    alarmId
+                )
+
+            val snoozeIntent =
+                Intent(
+                    context,
+                    ReminderReceiver::class.java
+                )
+
+            val snoozePendingIntent =
+                PendingIntent.getBroadcast(
+                    context,
+                    snoozeAlarmId,
+                    snoozeIntent,
+                    PendingIntent.FLAG_NO_CREATE or
+                            PendingIntent.FLAG_IMMUTABLE
+                )
+
+            if (
+                snoozePendingIntent != null
+            ) {
+
+                alarmManager.cancel(
+                    snoozePendingIntent
+                )
+
+                snoozePendingIntent.cancel()
+            }
+
+            notificationManager.cancel(
+                alarmId
+            )
+        }
+
+        escalationTimingCodes.forEach { (timing, _) ->
+
+            val alarmId =
+                createEscalationAlarmId(
+                    reminderId,
+                    timing
+                )
+
+            val reminderIntent =
+                Intent(
+                    context,
+                    ReminderReceiver::class.java
+                )
+
+            val pendingIntent =
+                PendingIntent.getBroadcast(
+                    context,
+                    alarmId,
+                    reminderIntent,
+                    PendingIntent.FLAG_NO_CREATE or
+                        PendingIntent.FLAG_IMMUTABLE
+                )
+
+            if (pendingIntent != null) {
+
+                alarmManager.cancel(
+                    pendingIntent
+                )
+
+                pendingIntent.cancel()
+            }
+
+            val snoozeAlarmId =
+                createSnoozeAlarmRequestCode(
+                    alarmId
+                )
+
+            val snoozeIntent =
+                Intent(
+                    context,
+                    ReminderReceiver::class.java
+                )
+
+            val snoozePendingIntent =
+                PendingIntent.getBroadcast(
+                    context,
+                    snoozeAlarmId,
+                    snoozeIntent,
+                    PendingIntent.FLAG_NO_CREATE or
+                        PendingIntent.FLAG_IMMUTABLE
+                )
+
+            if (snoozePendingIntent != null) {
+
+                alarmManager.cancel(
+                    snoozePendingIntent
+                )
+
+                snoozePendingIntent.cancel()
+            }
+
+            notificationManager.cancel(
+                alarmId
+            )
+        }
+
+        val followUpAlarmId =
+            createFollowUpNotificationId(
+                reminderId
+            )
+
+        val followUpIntent =
+            Intent(
+                context,
+                FollowUpReceiver::class.java
+            )
+
+        val followUpPendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                followUpAlarmId,
+                followUpIntent,
+                PendingIntent.FLAG_NO_CREATE or
+                    PendingIntent.FLAG_IMMUTABLE
+            )
+
+        if (followUpPendingIntent != null) {
+
+            alarmManager.cancel(
+                followUpPendingIntent
+            )
+
+            followUpPendingIntent.cancel()
+        }
+
+        val followUpSnoozeAlarmId =
+            createSnoozeAlarmRequestCode(
+                followUpAlarmId
+            )
+
+        val followUpSnoozeIntent =
+            Intent(
+                context,
+                ReminderReceiver::class.java
+            )
+
+        val followUpSnoozePendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                followUpSnoozeAlarmId,
+                followUpSnoozeIntent,
+                PendingIntent.FLAG_NO_CREATE or
+                    PendingIntent.FLAG_IMMUTABLE
+            )
+
+        if (followUpSnoozePendingIntent != null) {
+
+            alarmManager.cancel(
+                followUpSnoozePendingIntent
+            )
+
+            followUpSnoozePendingIntent.cancel()
+        }
+
+        notificationManager.cancel(
+            followUpAlarmId
+        )
+
+        val recurrenceIntent =
+            Intent(
+                context,
+                RecurrenceReceiver::class.java
+            )
+
+        val recurrencePendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                createRecurrenceAlarmId(
+                    reminderId
+                ),
+                recurrenceIntent,
+                PendingIntent.FLAG_NO_CREATE or
+                        PendingIntent.FLAG_IMMUTABLE
+            )
+
+        if (
+            recurrencePendingIntent != null
+        ) {
+
+            alarmManager.cancel(
+                recurrencePendingIntent
+            )
+
+            recurrencePendingIntent.cancel()
+        }
+
+        val legacyIntent =
+            Intent(
+                context,
+                ReminderReceiver::class.java
+            )
+
+        val legacyPendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                reminderId,
+                legacyIntent,
+                PendingIntent.FLAG_NO_CREATE or
+                        PendingIntent.FLAG_IMMUTABLE
+            )
+
+        if (
+            legacyPendingIntent != null
+        ) {
+
+            alarmManager.cancel(
+                legacyPendingIntent
+            )
+
+            legacyPendingIntent.cancel()
+        }
+
+        notificationManager.cancel(
+            reminderId
+        )
+    }
+
+    private fun createAlarmId(
+        reminderId: Int,
+        timing: String
+    ): Int {
+
+        val timingCode =
+            timingCodes[timing] ?: 1
+
+        return reminderId * 100 +
+                timingCode
+    }
+
+    private fun createEscalationAlarmId(
+        reminderId: Int,
+        timing: String
+    ): Int {
+
+        val timingCode =
+            escalationTimingCodes[timing] ?: 21
+
+        return reminderId * 100 +
+            timingCode
+    }
+
+    fun createFollowUpNotificationId(
+        reminderId: Int
+    ): Int {
+
+        return reminderId * 100 +
+            FOLLOW_UP_CODE
+    }
+
+    private fun createRecurrenceAlarmId(
+        reminderId: Int
+    ): Int {
+
+        return reminderId * 100 +
+                RECURRENCE_CODE
+    }
+
+    fun createSnoozeAlarmRequestCode(
+        notificationId: Int
+    ): Int {
+
+        return notificationId * 10 + 9
+    }
+}
+package com.josepharemu.reminderassistant
+
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+
+class ReminderReceiver : BroadcastReceiver() {
+
+    override fun onReceive(
+        context: Context,
+        intent: Intent
+    ) {
+
+        val reminderId =
+            intent.getIntExtra(
+                "REMINDER_ID",
+                0
+            )
+
+        val notificationId =
+            intent.getIntExtra(
+                "NOTIFICATION_ID",
+                reminderId
+            )
+
+        val title =
+            intent.getStringExtra(
+                "REMINDER_TITLE"
+            ) ?: "Reminder"
+
+        val message =
+            intent.getStringExtra(
+                "REMINDER_MESSAGE"
+            ) ?: "You have something to remember."
+
+        val repeatRule =
+            intent.getStringExtra(
+                "REMINDER_REPEAT_RULE"
+            ) ?: "None"
+
+        val occurrenceDate =
+            intent.getStringExtra(
+                "OCCURRENCE_DATE"
+            )
+
+        val followUpEnabled =
+            intent.getBooleanExtra(
+                "FOLLOW_UP_ENABLED",
+                false
+            )
+
+        val priority =
+            intent.getStringExtra(
+                "REMINDER_PRIORITY"
+            ) ?: "Normal"
+
+        val recurring =
+            ReminderScheduler.isRecurring(
+                repeatRule
+            )
+
+        ensureNotificationChannels(
+            context
+        )
+
+        if (
+            Build.VERSION.SDK_INT >=
+            Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        val openAppIntent =
+            Intent(
+                context,
+                MainActivity::class.java
+            ).apply {
+
+                flags =
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+
+        val openAppPendingIntent =
+            PendingIntent.getActivity(
+                context,
+                notificationId,
+                openAppIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_IMMUTABLE
+            )
+
+        val doneIntent =
+            if (recurring) {
+
+                Intent(
+                    context,
+                    DoneForTodayReceiver::class.java
+                ).apply {
+
+                    putExtra(
+                        "REMINDER_ID",
+                        reminderId
+                    )
+
+                    putExtra(
+                        "OCCURRENCE_DATE",
+                        occurrenceDate
+                    )
+                }
+
+            } else {
+
+                Intent(
+                    context,
+                    DoneReceiver::class.java
+                ).apply {
+
+                    putExtra(
+                        "REMINDER_ID",
+                        reminderId
+                    )
+                }
+            }
+
+        val donePendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                notificationId * 10 + 1,
+                doneIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_IMMUTABLE
+            )
+
+        val snoozeIntent =
+            Intent(
+                context,
+                SnoozeReceiver::class.java
+            ).apply {
+
+                putExtra(
+                    "REMINDER_ID",
+                    reminderId
+                )
+
+                putExtra(
+                    "NOTIFICATION_ID",
+                    notificationId
+                )
+
+                putExtra(
+                    "REMINDER_TITLE",
+                    title
+                )
+
+                putExtra(
+                    "REMINDER_MESSAGE",
+                    message
+                )
+
+                putExtra(
+                    "REMINDER_REPEAT_RULE",
+                    repeatRule
+                )
+
+                putExtra(
+                    "OCCURRENCE_DATE",
+                    occurrenceDate
+                )
+
+                putExtra(
+                    "FOLLOW_UP_ENABLED",
+                    followUpEnabled
+                )
+
+                putExtra(
+                    "REMINDER_PRIORITY",
+                    priority
+                )
+            }
+
+        val snoozePendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                notificationId * 10 + 2,
+                snoozeIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_IMMUTABLE
+            )
+
+        val stillWorkingIntent =
+            Intent(
+                context,
+                StillWorkingReceiver::class.java
+            ).apply {
+
+                putExtra(
+                    "REMINDER_ID",
+                    reminderId
+                )
+
+                putExtra(
+                    "NOTIFICATION_ID",
+                    notificationId
+                )
+            }
+
+        val stillWorkingPendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                notificationId * 10 + 3,
+                stillWorkingIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                    PendingIntent.FLAG_IMMUTABLE
+            )
+
+        val doneButtonText =
+            when {
+                recurring ->
+                    "Done for today"
+
+                followUpEnabled ->
+                    "Completed"
+
+                else ->
+                    "Done"
+            }
+
+        val notificationBuilder =
+            NotificationCompat.Builder(
+                context,
+                channelIdForPriority(
+                    priority
+                )
+            )
+                .setSmallIcon(
+                    android.R.drawable.ic_dialog_info
+                )
+                .setContentTitle(
+                    title
+                )
+                .setContentText(
+                    message
+                )
+                .setStyle(
+                    NotificationCompat
+                        .BigTextStyle()
+                        .bigText(message)
+                )
+                .setPriority(
+                    compatPriorityForPriority(
+                        priority
+                    )
+                )
+                .setCategory(
+                    NotificationCompat.CATEGORY_REMINDER
+                )
+                .setContentIntent(
+                    openAppPendingIntent
+                )
+                .addAction(
+                    0,
+                    doneButtonText,
+                    donePendingIntent
+                )
+                .setAutoCancel(true)
+
+        if (
+            followUpEnabled &&
+            !recurring
+        ) {
+
+            notificationBuilder.addAction(
+                0,
+                "Still working",
+                stillWorkingPendingIntent
+            )
+        }
+
+        notificationBuilder.addAction(
+            0,
+            "Snooze 10 min",
+            snoozePendingIntent
+        )
+
+        val notification =
+            notificationBuilder.build()
+
+        val notificationManager =
+            context.getSystemService(
+                Context.NOTIFICATION_SERVICE
+            ) as NotificationManager
+
+        notificationManager.notify(
+            notificationId,
+            notification
+        )
+    }
+
+    companion object {
+
+        const val CHANNEL_ID =
+            "personal_reminder_channel"
+
+        private const val NORMAL_CHANNEL_ID =
+            "personal_reminder_normal_v2"
+
+        private const val IMPORTANT_CHANNEL_ID =
+            "personal_reminder_important_v2"
+
+        private const val CRITICAL_CHANNEL_ID =
+            "personal_reminder_critical_v2"
+
+        fun channelIdForPriority(
+            priority: String
+        ): String {
+
+            return when (priority) {
+
+                "Critical" ->
+                    CRITICAL_CHANNEL_ID
+
+                "Important" ->
+                    IMPORTANT_CHANNEL_ID
+
+                else ->
+                    NORMAL_CHANNEL_ID
+            }
+        }
+
+        fun compatPriorityForPriority(
+            priority: String
+        ): Int {
+
+            return when (priority) {
+
+                "Critical" ->
+                    NotificationCompat.PRIORITY_MAX
+
+                "Important" ->
+                    NotificationCompat.PRIORITY_HIGH
+
+                else ->
+                    NotificationCompat.PRIORITY_DEFAULT
+            }
+        }
+
+        fun ensureNotificationChannels(
+            context: Context
+        ) {
+
+            if (
+                Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.O
+            ) {
+
+                val normalChannel =
+                    NotificationChannel(
+                        NORMAL_CHANNEL_ID,
+                        "Normal reminders",
+                        NotificationManager.IMPORTANCE_DEFAULT
+                    ).apply {
+
+                        description =
+                            "Standard reminders and follow-ups"
+                    }
+
+                val importantChannel =
+                    NotificationChannel(
+                        IMPORTANT_CHANNEL_ID,
+                        "Important reminders",
+                        NotificationManager.IMPORTANCE_HIGH
+                    ).apply {
+
+                        description =
+                            "Important reminders that need stronger attention"
+                    }
+
+                val criticalChannel =
+                    NotificationChannel(
+                        CRITICAL_CHANNEL_ID,
+                        "Critical reminders",
+                        NotificationManager.IMPORTANCE_HIGH
+                    ).apply {
+
+                        description =
+                            "Critical reminders and urgent follow-ups"
+                    }
+
+                val notificationManager =
+                    context.getSystemService(
+                        Context.NOTIFICATION_SERVICE
+                    ) as NotificationManager
+
+                notificationManager
+                    .createNotificationChannels(
+                        listOf(
+                            normalChannel,
+                            importantChannel,
+                            criticalChannel
+                        )
+                    )
+            }
+        }
+    }
+}
+package com.josepharemu.reminderassistant
+
+import android.app.AlarmManager
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+
+class SnoozeReceiver : BroadcastReceiver() {
+
+    override fun onReceive(
+        context: Context,
+        intent: Intent
+    ) {
+
+        val reminderId =
+            intent.getIntExtra(
+                "REMINDER_ID",
+                0
+            )
+
+        val notificationId =
+            intent.getIntExtra(
+                "NOTIFICATION_ID",
+                reminderId
+            )
+
+        val title =
+            intent.getStringExtra(
+                "REMINDER_TITLE"
+            ) ?: "Reminder"
+
+        val message =
+            intent.getStringExtra(
+                "REMINDER_MESSAGE"
+            ) ?: "You have something to remember."
+
+        val repeatRule =
+            intent.getStringExtra(
+                "REMINDER_REPEAT_RULE"
+            ) ?: "None"
+
+        val occurrenceDate =
+            intent.getStringExtra(
+                "OCCURRENCE_DATE"
+            )
+
+        val followUpEnabled =
+            intent.getBooleanExtra(
+                "FOLLOW_UP_ENABLED",
+                false
+            )
+
+        val priority =
+            intent.getStringExtra(
+                "REMINDER_PRIORITY"
+            ) ?: "Normal"
+
+        val notificationManager =
+            context.getSystemService(
+                Context.NOTIFICATION_SERVICE
+            ) as NotificationManager
+
+        notificationManager.cancel(
+            notificationId
+        )
+
+        val snoozeAlarmRequestCode =
+            ReminderScheduler
+                .createSnoozeAlarmRequestCode(
+                    notificationId
+                )
+
+        val reminderIntent =
+            Intent(
+                context,
+                ReminderReceiver::class.java
+            ).apply {
+
+                putExtra(
+                    "REMINDER_ID",
+                    reminderId
+                )
+
+                putExtra(
+                    "NOTIFICATION_ID",
+                    notificationId
+                )
+
+                putExtra(
+                    "REMINDER_TITLE",
+                    title
+                )
+
+                putExtra(
+                    "REMINDER_MESSAGE",
+                    "Snoozed reminder • $message"
+                )
+
+                putExtra(
+                    "REMINDER_REPEAT_RULE",
+                    repeatRule
+                )
+
+                putExtra(
+                    "OCCURRENCE_DATE",
+                    occurrenceDate
+                )
+
+                putExtra(
+                    "FOLLOW_UP_ENABLED",
+                    followUpEnabled
+                )
+
+                putExtra(
+                    "REMINDER_PRIORITY",
+                    priority
+                )
+            }
+
+        val pendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                snoozeAlarmRequestCode,
+                reminderIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_IMMUTABLE
+            )
+
+        val triggerTime =
+            System.currentTimeMillis() +
+                    (10 * 60 * 1000L)
+
+        val alarmManager =
+            context.getSystemService(
+                Context.ALARM_SERVICE
+            ) as AlarmManager
+
+        if (
+            Build.VERSION.SDK_INT >=
+            Build.VERSION_CODES.S
+        ) {
+
+            if (
+                alarmManager.canScheduleExactAlarms()
+            ) {
+
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerTime,
+                    pendingIntent
+                )
+
+            } else {
+
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerTime,
+                    pendingIntent
+                )
+            }
+
+        } else {
+
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerTime,
+                pendingIntent
+            )
+        }
+    }
+}
+package com.josepharemu.reminderassistant
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
+class DoneReceiver : BroadcastReceiver() {
+
+    override fun onReceive(
+        context: Context,
+        intent: Intent
+    ) {
+
+        val reminderId =
+            intent.getIntExtra(
+                "REMINDER_ID",
+                0
+            )
+
+        if (reminderId == 0) {
+            return
+        }
+
+        val pendingResult =
+            goAsync()
+
+        val scope =
+            CoroutineScope(
+                SupervisorJob() +
+                        Dispatchers.IO
+            )
+
+        scope.launch {
+
+            try {
+
+                val database =
+                    ReminderDatabase
+                        .getDatabase(
+                            context
+                        )
+
+                /*
+                 * Mark the whole reminder series
+                 * as completed.
+                 */
+                database
+                    .reminderDao()
+                    .markReminderCompleted(
+                        reminderId
+                    )
+
+                /*
+                 * Cancel every normal,
+                 * recurring and snoozed alarm.
+                 */
+                ReminderScheduler
+                    .cancelReminder(
+                        context,
+                        reminderId
+                    )
+
+            } finally {
+
+                pendingResult.finish()
+            }
+        }
+    }
+}
+package com.josepharemu.reminderassistant
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
+class DoneForTodayReceiver : BroadcastReceiver() {
+
+    override fun onReceive(
+        context: Context,
+        intent: Intent
+    ) {
+
+        val reminderId =
+            intent.getIntExtra(
+                "REMINDER_ID",
+                0
+            )
+
+        val occurrenceDate =
+            intent.getStringExtra(
+                "OCCURRENCE_DATE"
+            )
+
+        if (reminderId == 0) {
+            return
+        }
+
+        val pendingResult =
+            goAsync()
+
+        val scope =
+            CoroutineScope(
+                SupervisorJob() +
+                        Dispatchers.IO
+            )
+
+        scope.launch {
+
+            try {
+
+                val database =
+                    ReminderDatabase
+                        .getDatabase(
+                            context
+                        )
+
+                val dao =
+                    database.reminderDao()
+
+                val currentReminder =
+                    dao.getReminderById(
+                        reminderId
+                    ) ?: return@launch
+
+                if (
+                    currentReminder.isCompleted ||
+                    !ReminderScheduler.isRecurring(
+                        currentReminder.repeatRule
+                    )
+                ) {
+
+                    return@launch
+                }
+
+                /*
+                 * Cancel all alarms first.
+                 *
+                 * If the automatic recurrence receiver
+                 * already moved the reminder forward,
+                 * we will simply schedule that new
+                 * occurrence again below.
+                 */
+                ReminderScheduler
+                    .cancelReminder(
+                        context,
+                        reminderId
+                    )
+
+                var reminderToSchedule =
+                    currentReminder
+
+                /*
+                 * Only advance the date if this
+                 * notification still belongs to the
+                 * reminder's current occurrence.
+                 *
+                 * This prevents:
+                 *
+                 * 16 Oct -> 17 Oct -> 18 Oct
+                 *
+                 * when the automatic recurrence alarm
+                 * had already changed it to 17 Oct.
+                 */
+                if (
+                    occurrenceDate == null ||
+                    currentReminder.date ==
+                    occurrenceDate
+                ) {
+
+                    val nextReminder =
+                        ReminderScheduler
+                            .getNextOccurrence(
+                                currentReminder
+                            )
+
+                    /*
+                     * No date change means this is the final
+                     * allowed occurrence. "Done for today"
+                     * should therefore finish the series.
+                     */
+                    if (
+                        nextReminder.date ==
+                        currentReminder.date
+                    ) {
+
+                        dao.updateReminder(
+                            currentReminder.copy(
+                                isCompleted = true,
+                                repeatRule = "None",
+                                repeatAnchorDate = "None",
+                                repeatUntilDate = "None"
+                            )
+                        )
+
+                        return@launch
+                    }
+
+                    dao.updateReminderOccurrence(
+                        reminderId =
+                            reminderId,
+
+                        newDate =
+                            nextReminder.date,
+
+                        anchorDate =
+                            nextReminder.repeatAnchorDate
+                    )
+
+                    reminderToSchedule =
+                        nextReminder
+                }
+
+                val latestReminder =
+                    dao.getReminderById(
+                        reminderId
+                    )
+
+                if (
+                    latestReminder != null &&
+                    !latestReminder.isCompleted &&
+                    ReminderScheduler.isRecurring(
+                        latestReminder.repeatRule
+                    )
+                ) {
+
+                    reminderToSchedule =
+                        latestReminder
+
+                    ReminderScheduler
+                        .scheduleReminder(
+                            context,
+                            reminderToSchedule
+                        )
+                }
+
+            } finally {
+
+                pendingResult.finish()
+            }
+        }
+    }
+}
+package com.josepharemu.reminderassistant
+
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
+class FollowUpReceiver : BroadcastReceiver() {
+
+    override fun onReceive(
+        context: Context,
+        intent: Intent
+    ) {
+
+        val reminderId =
+            intent.getIntExtra(
+                "REMINDER_ID",
+                0
+            )
+
+        if (reminderId == 0) {
+            return
+        }
+
+        val pendingResult =
+            goAsync()
+
+        val scope =
+            CoroutineScope(
+                SupervisorJob() +
+                    Dispatchers.IO
+            )
+
+        scope.launch {
+
+            try {
+
+                val database =
+                    ReminderDatabase
+                        .getDatabase(context)
+
+                val reminder =
+                    database
+                        .reminderDao()
+                        .getReminderById(
+                            reminderId
+                        )
+                        ?: return@launch
+
+                if (
+                    reminder.isCompleted ||
+                    !reminder.followUpUntilCompleted ||
+                    ReminderScheduler.isRecurring(
+                        reminder.repeatRule
+                    )
+                ) {
+                    return@launch
+                }
+
+                ReminderScheduler
+                    .scheduleNextFollowUp(
+                        context,
+                        reminder
+                    )
+
+                ReminderReceiver
+                    .ensureNotificationChannels(
+                        context
+                    )
+
+                if (
+                    Build.VERSION.SDK_INT >=
+                    Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    return@launch
+                }
+
+                val notificationId =
+                    ReminderScheduler
+                        .createFollowUpNotificationId(
+                            reminder.id
+                        )
+
+                val openAppIntent =
+                    Intent(
+                        context,
+                        MainActivity::class.java
+                    ).apply {
+
+                        flags =
+                            Intent.FLAG_ACTIVITY_NEW_TASK or
+                                Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+
+                val openAppPendingIntent =
+                    PendingIntent.getActivity(
+                        context,
+                        notificationId,
+                        openAppIntent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or
+                            PendingIntent.FLAG_IMMUTABLE
+                    )
+
+                val doneIntent =
+                    Intent(
+                        context,
+                        DoneReceiver::class.java
+                    ).apply {
+
+                        putExtra(
+                            "REMINDER_ID",
+                            reminder.id
+                        )
+                    }
+
+                val donePendingIntent =
+                    PendingIntent.getBroadcast(
+                        context,
+                        notificationId * 10 + 1,
+                        doneIntent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or
+                            PendingIntent.FLAG_IMMUTABLE
+                    )
+
+                val stillWorkingIntent =
+                    Intent(
+                        context,
+                        StillWorkingReceiver::class.java
+                    ).apply {
+
+                        putExtra(
+                            "REMINDER_ID",
+                            reminder.id
+                        )
+
+                        putExtra(
+                            "NOTIFICATION_ID",
+                            notificationId
+                        )
+                    }
+
+                val stillWorkingPendingIntent =
+                    PendingIntent.getBroadcast(
+                        context,
+                        notificationId * 10 + 3,
+                        stillWorkingIntent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or
+                            PendingIntent.FLAG_IMMUTABLE
+                    )
+
+                val message =
+                    when (reminder.type) {
+
+                        "Deadline" ->
+                            "Still incomplete • Final deadline was " +
+                                "${reminder.deadlineDate} at " +
+                                reminder.deadlineTime
+
+                        "Task" ->
+                            "Still open • Task was due " +
+                                "${reminder.date} at ${reminder.time}"
+
+                        "Event" ->
+                            "Still open • Event was scheduled for " +
+                                "${reminder.date} at ${reminder.time}"
+
+                        else ->
+                            "Still open • Scheduled for " +
+                                "${reminder.date} at ${reminder.time}"
+                    }
+
+                val snoozeIntent =
+                    Intent(
+                        context,
+                        SnoozeReceiver::class.java
+                    ).apply {
+
+                        putExtra(
+                            "REMINDER_ID",
+                            reminder.id
+                        )
+
+                        putExtra(
+                            "NOTIFICATION_ID",
+                            notificationId
+                        )
+
+                        putExtra(
+                            "REMINDER_TITLE",
+                            reminder.title
+                        )
+
+                        putExtra(
+                            "REMINDER_MESSAGE",
+                            message
+                        )
+
+                        putExtra(
+                            "REMINDER_REPEAT_RULE",
+                            "None"
+                        )
+
+                        putExtra(
+                            "OCCURRENCE_DATE",
+                            reminder.date
+                        )
+
+                        putExtra(
+                            "FOLLOW_UP_ENABLED",
+                            true
+                        )
+
+                        putExtra(
+                            "REMINDER_PRIORITY",
+                            reminder.priority
+                        )
+                    }
+
+                val snoozePendingIntent =
+                    PendingIntent.getBroadcast(
+                        context,
+                        notificationId * 10 + 2,
+                        snoozeIntent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or
+                            PendingIntent.FLAG_IMMUTABLE
+                    )
+
+                val notification =
+                    NotificationCompat.Builder(
+                        context,
+                        ReminderReceiver
+                            .channelIdForPriority(
+                                reminder.priority
+                            )
+                    )
+                        .setSmallIcon(
+                            android.R.drawable.ic_dialog_info
+                        )
+                        .setContentTitle(
+                            reminder.title
+                        )
+                        .setContentText(
+                            message
+                        )
+                        .setStyle(
+                            NotificationCompat
+                                .BigTextStyle()
+                                .bigText(message)
+                        )
+                        .setPriority(
+                            ReminderReceiver
+                                .compatPriorityForPriority(
+                                    reminder.priority
+                                )
+                        )
+                        .setCategory(
+                            NotificationCompat.CATEGORY_REMINDER
+                        )
+                        .setContentIntent(
+                            openAppPendingIntent
+                        )
+                        .addAction(
+                            0,
+                            "Completed",
+                            donePendingIntent
+                        )
+                        .addAction(
+                            0,
+                            "Still working",
+                            stillWorkingPendingIntent
+                        )
+                        .addAction(
+                            0,
+                            "Snooze 10 min",
+                            snoozePendingIntent
+                        )
+                        .setAutoCancel(true)
+                        .build()
+
+                val notificationManager =
+                    context.getSystemService(
+                        Context.NOTIFICATION_SERVICE
+                    ) as NotificationManager
+
+                notificationManager.notify(
+                    notificationId,
+                    notification
+                )
+
+            } finally {
+
+                pendingResult.finish()
+            }
+        }
+    }
+
+}
+package com.josepharemu.reminderassistant
+
+import android.app.NotificationManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+
+class StillWorkingReceiver : BroadcastReceiver() {
+
+    override fun onReceive(
+        context: Context,
+        intent: Intent
+    ) {
+
+        val notificationId =
+            intent.getIntExtra(
+                "NOTIFICATION_ID",
+                0
+            )
+
+        if (notificationId == 0) {
+            return
+        }
+
+        val notificationManager =
+            context.getSystemService(
+                Context.NOTIFICATION_SERVICE
+            ) as NotificationManager
+
+        notificationManager.cancel(
+            notificationId
+        )
+    }
+}
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission
+        android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <uses-permission
+        android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.PersonalReminderAssistant">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.PersonalReminderAssistant"
+            android:windowSoftInputMode="adjustResize">
+
+            <intent-filter>
+
+                <action
+                    android:name="android.intent.action.MAIN" />
+
+                <category
+                    android:name="android.intent.category.LAUNCHER" />
+
+            </intent-filter>
+
+        </activity>
+
+        <receiver
+            android:name=".ReminderReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".DoneReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".DoneForTodayReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".SnoozeReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".RecurrenceReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+
+            <intent-filter>
+
+                <action
+                    android:name="android.intent.action.BOOT_COMPLETED" />
+
+            </intent-filter>
+
+        </receiver>
+
+    </application>
+
+</manifest>

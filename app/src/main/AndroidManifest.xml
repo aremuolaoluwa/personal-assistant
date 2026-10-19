@@ -61,6 +61,16 @@
             android:exported="false" />
 
         <receiver
+            android:name=".FollowUpReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".StillWorkingReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
             android:name=".RecurrenceReceiver"
             android:enabled="true"
             android:exported="false" />

@@ -371,6 +371,21 @@ object ReminderScheduler {
                     "REMINDER_PRIORITY",
                     reminder.priority
                 )
+
+                putExtra(
+                    "REMINDER_TYPE",
+                    reminder.type
+                )
+
+                putExtra(
+                    "REMINDER_TIMING",
+                    timing
+                )
+
+                putExtra(
+                    "IS_FOLLOW_UP",
+                    false
+                )
             }
 
         val pendingIntent =
@@ -467,6 +482,21 @@ object ReminderScheduler {
                 putExtra(
                     "REMINDER_PRIORITY",
                     reminder.priority
+                )
+
+                putExtra(
+                    "REMINDER_TYPE",
+                    "Deadline"
+                )
+
+                putExtra(
+                    "REMINDER_TIMING",
+                    timing
+                )
+
+                putExtra(
+                    "IS_FOLLOW_UP",
+                    false
                 )
             }
 

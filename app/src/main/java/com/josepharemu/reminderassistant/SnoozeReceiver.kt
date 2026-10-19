@@ -58,6 +58,22 @@ class SnoozeReceiver : BroadcastReceiver() {
                 "REMINDER_PRIORITY"
             ) ?: "Normal"
 
+        val reminderType =
+            intent.getStringExtra(
+                "REMINDER_TYPE"
+            ) ?: "Reminder"
+
+        val reminderTiming =
+            intent.getStringExtra(
+                "REMINDER_TIMING"
+            ) ?: "At time of event"
+
+        val isFollowUp =
+            intent.getBooleanExtra(
+                "IS_FOLLOW_UP",
+                false
+            )
+
         val notificationManager =
             context.getSystemService(
                 Context.NOTIFICATION_SERVICE
@@ -117,6 +133,21 @@ class SnoozeReceiver : BroadcastReceiver() {
                 putExtra(
                     "REMINDER_PRIORITY",
                     priority
+                )
+
+                putExtra(
+                    "REMINDER_TYPE",
+                    reminderType
+                )
+
+                putExtra(
+                    "REMINDER_TIMING",
+                    reminderTiming
+                )
+
+                putExtra(
+                    "IS_FOLLOW_UP",
+                    isFollowUp
                 )
             }
 

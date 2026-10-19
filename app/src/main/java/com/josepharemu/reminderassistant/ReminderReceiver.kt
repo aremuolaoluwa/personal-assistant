@@ -62,6 +62,22 @@ class ReminderReceiver : BroadcastReceiver() {
                 "REMINDER_PRIORITY"
             ) ?: "Normal"
 
+        val reminderType =
+            intent.getStringExtra(
+                "REMINDER_TYPE"
+            ) ?: "Reminder"
+
+        val reminderTiming =
+            intent.getStringExtra(
+                "REMINDER_TIMING"
+            ) ?: "At time of event"
+
+        val isFollowUp =
+            intent.getBooleanExtra(
+                "IS_FOLLOW_UP",
+                false
+            )
+
         val recurring =
             ReminderScheduler.isRecurring(
                 repeatRule
@@ -189,6 +205,21 @@ class ReminderReceiver : BroadcastReceiver() {
                     "REMINDER_PRIORITY",
                     priority
                 )
+
+                putExtra(
+                    "REMINDER_TYPE",
+                    reminderType
+                )
+
+                putExtra(
+                    "REMINDER_TIMING",
+                    reminderTiming
+                )
+
+                putExtra(
+                    "IS_FOLLOW_UP",
+                    isFollowUp
+                )
             }
 
         val snoozePendingIntent =
@@ -226,16 +257,52 @@ class ReminderReceiver : BroadcastReceiver() {
                     PendingIntent.FLAG_IMMUTABLE
             )
 
+        val isEventAdvanceAlert =
+            reminderType.equals(
+                "Event",
+                ignoreCase = true
+            ) &&
+                !isFollowUp &&
+                reminderTiming !=
+                    "At time of event"
+
         val doneButtonText =
             when {
+
                 recurring ->
                     "Done for today"
 
-                followUpEnabled ->
+                reminderType.equals(
+                    "Task",
+                    ignoreCase = true
+                ) ||
+                    reminderType.equals(
+                        "Deadline",
+                        ignoreCase = true
+                    ) ->
                     "Completed"
 
                 else ->
                     "Done"
+            }
+
+        val keepActiveButtonText =
+            when {
+
+                reminderType.equals(
+                    "Event",
+                    ignoreCase = true
+                ) ->
+                    "Still relevant"
+
+                reminderType.equals(
+                    "Reminder",
+                    ignoreCase = true
+                ) ->
+                    "Keep active"
+
+                else ->
+                    "Still working"
             }
 
         val notificationBuilder =
@@ -270,21 +337,32 @@ class ReminderReceiver : BroadcastReceiver() {
                 .setContentIntent(
                     openAppPendingIntent
                 )
-                .addAction(
-                    0,
-                    doneButtonText,
-                    donePendingIntent
-                )
                 .setAutoCancel(true)
+
+        /*
+         * Event alerts that fire before the actual event do not
+         * show a completion button. Tapping "Done" several days
+         * early could otherwise complete the whole event or move
+         * a recurring event to its next occurrence.
+         */
+        if (!isEventAdvanceAlert) {
+
+            notificationBuilder.addAction(
+                0,
+                doneButtonText,
+                donePendingIntent
+            )
+        }
 
         if (
             followUpEnabled &&
-            !recurring
+            !recurring &&
+            !isEventAdvanceAlert
         ) {
 
             notificationBuilder.addAction(
                 0,
-                "Still working",
+                keepActiveButtonText,
                 stillWorkingPendingIntent
             )
         }
