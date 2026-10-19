@@ -1,5 +1,4 @@
 package com.josepharemu.reminderassistant
-
 import android.Manifest
 import android.app.AlarmManager
 import android.app.DatePickerDialog
@@ -45,12 +44,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -201,6 +202,10 @@ fun AddReminderScreen(
         mutableStateOf(
             setOf("At time of event")
         )
+    }
+
+    var automaticEscalationEnabled by remember {
+        mutableStateOf(false)
     }
 
     val calendar =
@@ -803,6 +808,28 @@ fun AddReminderScreen(
                         it
                 }
             )
+
+            if (
+                selectedType ==
+                "Deadline"
+            ) {
+
+                Spacer(
+                    modifier =
+                        Modifier.height(22.dp)
+                )
+
+                AutomaticEscalationToggle(
+                    enabled =
+                        automaticEscalationEnabled,
+                    priority =
+                        selectedPriority,
+                    onEnabledChange = {
+                        automaticEscalationEnabled =
+                            it
+                    }
+                )
+            }
         }
 
         Spacer(
@@ -1104,7 +1131,11 @@ fun AddReminderScreen(
                                 deadlineTime =
                                     finalDeadlineTime,
                                 repeatUntilDate =
-                                    repeatUntil
+                                    repeatUntil,
+                                escalationEnabled =
+                                    selectedType ==
+                                        "Deadline" &&
+                                        automaticEscalationEnabled
                             )
 
                         coroutineScope.launch {
@@ -1363,6 +1394,80 @@ fun FormPickerButton(
                 } else {
                     text
                 }
+        )
+    }
+}
+
+@Composable
+fun AutomaticEscalationToggle(
+    enabled: Boolean,
+    priority: String,
+    onEnabledChange: (Boolean) -> Unit
+) {
+
+    val description =
+        when (priority) {
+
+            "Critical" ->
+                "Adds intensive deadline alerts: 1 week, 3 days, 1 day, 2 hours, 1 hour, 30 minutes, 10 minutes and at the deadline."
+
+            "Important" ->
+                "Adds balanced deadline alerts: 3 days, 1 day, 2 hours, 30 minutes and at the deadline."
+
+            else ->
+                "Adds gentle deadline alerts: 1 day, 1 hour and at the deadline."
+        }
+
+    Row(
+        modifier =
+            Modifier.fillMaxWidth(),
+        verticalAlignment =
+            Alignment.CenterVertically
+    ) {
+
+        Column(
+            modifier =
+                Modifier.weight(1f)
+        ) {
+
+            Text(
+                text =
+                    "Automatic escalation",
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleMedium
+            )
+
+            Spacer(
+                modifier =
+                    Modifier.height(4.dp)
+            )
+
+            Text(
+                text =
+                    description,
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyMedium,
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurfaceVariant
+            )
+        }
+
+        Spacer(
+            modifier =
+                Modifier.size(14.dp)
+        )
+
+        Switch(
+            checked =
+                enabled,
+            onCheckedChange =
+                onEnabledChange
         )
     }
 }

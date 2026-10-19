@@ -1,5 +1,4 @@
 package com.josepharemu.reminderassistant
-
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.widget.Toast
@@ -185,6 +184,14 @@ fun EditReminderScreen(
                     parseReminderTimings(
                         reminder.reminderTiming
                     )
+                )
+            }
+
+    var automaticEscalationEnabled
+            by remember(reminder.id) {
+
+                mutableStateOf(
+                    reminder.escalationEnabled
                 )
             }
 
@@ -741,6 +748,28 @@ fun EditReminderScreen(
                         it
                 }
             )
+
+            if (
+                selectedType ==
+                "Deadline"
+            ) {
+
+                Spacer(
+                    modifier =
+                        Modifier.height(22.dp)
+                )
+
+                AutomaticEscalationToggle(
+                    enabled =
+                        automaticEscalationEnabled,
+                    priority =
+                        selectedPriority,
+                    onEnabledChange = {
+                        automaticEscalationEnabled =
+                            it
+                    }
+                )
+            }
         }
 
         Spacer(
@@ -1017,7 +1046,11 @@ fun EditReminderScreen(
                                 deadlineTime =
                                     updatedDeadlineTime,
                                 repeatUntilDate =
-                                    updatedRepeatUntil
+                                    updatedRepeatUntil,
+                                escalationEnabled =
+                                    selectedType ==
+                                        "Deadline" &&
+                                        automaticEscalationEnabled
                             )
 
                         coroutineScope.launch {
