@@ -1,5 +1,4 @@
 package com.josepharemu.reminderassistant
-
 import android.app.AlarmManager
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -30,6 +29,21 @@ object ReminderScheduler {
         "1 day before" to 6,
         "3 days before" to 7,
         "1 week before" to 8
+    )
+
+    /*
+     * Deadline escalation alarms use their own request-code
+     * range so they never overwrite normal occurrence alarms.
+     */
+    private val escalationTimingCodes = mapOf(
+        "At time of event" to 21,
+        "10 minutes before" to 22,
+        "30 minutes before" to 23,
+        "1 hour before" to 24,
+        "2 hours before" to 25,
+        "1 day before" to 26,
+        "3 days before" to 27,
+        "1 week before" to 28
     )
 
     private const val RECURRENCE_CODE = 90
@@ -63,37 +77,124 @@ object ReminderScheduler {
                 reminder.reminderTiming
             )
 
-        var scheduledAtLeastOneNotification = false
+        val deadlineDateTime =
+            if (
+                reminder.escalationEnabled &&
+                reminder.type.equals(
+                    "Deadline",
+                    ignoreCase = true
+                )
+            ) {
+                parseDeadlineDateTime(
+                    reminder
+                )
+            } else {
+                null
+            }
 
+        val escalationTimings =
+            if (deadlineDateTime != null) {
+                getEscalationTimings(
+                    reminder.priority
+                )
+            } else {
+                emptyList()
+            }
+
+        val currentOccurrenceIsDeadline =
+            deadlineDateTime != null &&
+                eventDateTime ==
+                deadlineDateTime
+
+        var scheduledAtLeastOneNotification =
+            false
+
+        /*
+         * Keep the user's manually selected notification
+         * timings. On the final deadline occurrence, skip
+         * only timings that automatic escalation will
+         * already provide so the user does not receive
+         * duplicate notifications at the same moment.
+         */
         selectedTimings.forEach { timing ->
 
-            val notificationDateTime =
-                calculateNotificationTime(
-                    eventDateTime,
-                    timing
-                )
+            val coveredByEscalation =
+                currentOccurrenceIsDeadline &&
+                    timing in escalationTimings
 
-            val triggerTime =
-                notificationDateTime
-                    .atZone(
-                        ZoneId.systemDefault()
+            if (!coveredByEscalation) {
+
+                val notificationDateTime =
+                    calculateNotificationTime(
+                        eventDateTime,
+                        timing
                     )
-                    .toInstant()
-                    .toEpochMilli()
 
-            if (
-                triggerTime >
-                System.currentTimeMillis()
-            ) {
+                val triggerTime =
+                    notificationDateTime
+                        .atZone(
+                            ZoneId.systemDefault()
+                        )
+                        .toInstant()
+                        .toEpochMilli()
 
-                scheduleSingleNotificationAlarm(
-                    context = context,
-                    reminder = reminder,
-                    timing = timing,
-                    triggerTime = triggerTime
-                )
+                if (
+                    triggerTime >
+                    System.currentTimeMillis()
+                ) {
 
-                scheduledAtLeastOneNotification = true
+                    scheduleSingleNotificationAlarm(
+                        context = context,
+                        reminder = reminder,
+                        timing = timing,
+                        triggerTime = triggerTime
+                    )
+
+                    scheduledAtLeastOneNotification =
+                        true
+                }
+            }
+        }
+
+        /*
+         * Automatic escalation is calculated from the
+         * final deadline, not from the next recurring
+         * occurrence. The user's priority controls how
+         * intensive the extra alerts become.
+         */
+        if (deadlineDateTime != null) {
+
+            escalationTimings.forEach { timing ->
+
+                val notificationDateTime =
+                    calculateNotificationTime(
+                        deadlineDateTime,
+                        timing
+                    )
+
+                val triggerTime =
+                    notificationDateTime
+                        .atZone(
+                            ZoneId.systemDefault()
+                        )
+                        .toInstant()
+                        .toEpochMilli()
+
+                if (
+                    triggerTime >
+                    System.currentTimeMillis()
+                ) {
+
+                    scheduleSingleDeadlineEscalationAlarm(
+                        context = context,
+                        reminder = reminder,
+                        timing = timing,
+                        triggerTime = triggerTime
+                    )
+
+                    scheduledAtLeastOneNotification =
+                        true
+                }
             }
         }
 
@@ -201,6 +302,129 @@ object ReminderScheduler {
             triggerTime = triggerTime,
             pendingIntent = pendingIntent
         )
+    }
+
+    private fun scheduleSingleDeadlineEscalationAlarm(
+        context: Context,
+        reminder: Reminder,
+        timing: String,
+        triggerTime: Long
+    ) {
+
+        val notificationId =
+            createEscalationAlarmId(
+                reminder.id,
+                timing
+            )
+
+        val timingText =
+            when (timing) {
+
+                "At time of event" ->
+                    "Deadline reached"
+
+                else ->
+                    timing
+            }
+
+        val message =
+            "$timingText • Final deadline " +
+                "${reminder.deadlineDate} at " +
+                reminder.deadlineTime
+
+        val intent =
+            Intent(
+                context,
+                ReminderReceiver::class.java
+            ).apply {
+
+                putExtra(
+                    "REMINDER_ID",
+                    reminder.id
+                )
+
+                putExtra(
+                    "NOTIFICATION_ID",
+                    notificationId
+                )
+
+                putExtra(
+                    "REMINDER_TITLE",
+                    reminder.title
+                )
+
+                putExtra(
+                    "REMINDER_MESSAGE",
+                    message
+                )
+
+                /*
+                 * Escalation notifications refer to the whole
+                 * deadline, not one recurring occurrence.
+                 * Therefore "Done" completes the deadline
+                 * reminder instead of advancing one week.
+                 */
+                putExtra(
+                    "REMINDER_REPEAT_RULE",
+                    "None"
+                )
+
+                putExtra(
+                    "OCCURRENCE_DATE",
+                    reminder.deadlineDate
+                )
+            }
+
+        val pendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                notificationId,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                    PendingIntent.FLAG_IMMUTABLE
+            )
+
+        scheduleAlarm(
+            context = context,
+            triggerTime = triggerTime,
+            pendingIntent = pendingIntent
+        )
+    }
+
+    private fun getEscalationTimings(
+        priority: String
+    ): List<String> {
+
+        return when (priority) {
+
+            "Critical" ->
+                listOf(
+                    "1 week before",
+                    "3 days before",
+                    "1 day before",
+                    "2 hours before",
+                    "1 hour before",
+                    "30 minutes before",
+                    "10 minutes before",
+                    "At time of event"
+                )
+
+            "Important" ->
+                listOf(
+                    "3 days before",
+                    "1 day before",
+                    "2 hours before",
+                    "30 minutes before",
+                    "At time of event"
+                )
+
+            else ->
+                listOf(
+                    "1 day before",
+                    "1 hour before",
+                    "At time of event"
+                )
+        }
     }
 
     private fun scheduleRecurrenceAlarm(
@@ -626,6 +850,46 @@ object ReminderScheduler {
         }
     }
 
+    private fun parseDeadlineDateTime(
+        reminder: Reminder
+    ): LocalDateTime? {
+
+        if (
+            reminder.deadlineDate.isBlank() ||
+            reminder.deadlineDate == "None" ||
+            reminder.deadlineTime.isBlank() ||
+            reminder.deadlineTime == "None"
+        ) {
+            return null
+        }
+
+        return try {
+
+            val date =
+                LocalDate.parse(
+                    reminder.deadlineDate,
+                    dateFormatter
+                )
+
+            val time =
+                LocalTime.parse(
+                    reminder.deadlineTime,
+                    timeFormatter
+                )
+
+            LocalDateTime.of(
+                date,
+                time
+            )
+
+        } catch (
+            exception: Exception
+        ) {
+
+            null
+        }
+    }
+
     private fun parseEventDateTime(
         reminder: Reminder
     ): LocalDateTime? {
@@ -756,6 +1020,72 @@ object ReminderScheduler {
             )
         }
 
+        escalationTimingCodes.forEach { (timing, _) ->
+
+            val alarmId =
+                createEscalationAlarmId(
+                    reminderId,
+                    timing
+                )
+
+            val reminderIntent =
+                Intent(
+                    context,
+                    ReminderReceiver::class.java
+                )
+
+            val pendingIntent =
+                PendingIntent.getBroadcast(
+                    context,
+                    alarmId,
+                    reminderIntent,
+                    PendingIntent.FLAG_NO_CREATE or
+                        PendingIntent.FLAG_IMMUTABLE
+                )
+
+            if (pendingIntent != null) {
+
+                alarmManager.cancel(
+                    pendingIntent
+                )
+
+                pendingIntent.cancel()
+            }
+
+            val snoozeAlarmId =
+                createSnoozeAlarmRequestCode(
+                    alarmId
+                )
+
+            val snoozeIntent =
+                Intent(
+                    context,
+                    ReminderReceiver::class.java
+                )
+
+            val snoozePendingIntent =
+                PendingIntent.getBroadcast(
+                    context,
+                    snoozeAlarmId,
+                    snoozeIntent,
+                    PendingIntent.FLAG_NO_CREATE or
+                        PendingIntent.FLAG_IMMUTABLE
+                )
+
+            if (snoozePendingIntent != null) {
+
+                alarmManager.cancel(
+                    snoozePendingIntent
+                )
+
+                snoozePendingIntent.cancel()
+            }
+
+            notificationManager.cancel(
+                alarmId
+            )
+        }
+
         val recurrenceIntent =
             Intent(
                 context,
@@ -825,6 +1155,18 @@ object ReminderScheduler {
 
         return reminderId * 100 +
                 timingCode
+    }
+
+    private fun createEscalationAlarmId(
+        reminderId: Int,
+        timing: String
+    ): Int {
+
+        val timingCode =
+            escalationTimingCodes[timing] ?: 21
+
+        return reminderId * 100 +
+            timingCode
     }
 
     private fun createRecurrenceAlarmId(

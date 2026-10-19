@@ -371,25 +371,35 @@ fun AddReminderScreen(
             title =
                 "Schedule",
             subtitle =
-                if (
-                    selectedType ==
-                    "Deadline"
-                ) {
-                    "Set the first reminder and the final deadline."
-                } else {
-                    "Choose when this reminder should happen."
+                when (selectedType) {
+                    "Event" ->
+                        "Set the actual date and time of the event."
+
+                    "Deadline" ->
+                        "Set when the reminder schedule starts and the actual final deadline."
+
+                    "Task" ->
+                        "Set when the task is due."
+
+                    else ->
+                        "Set when this reminder is scheduled."
                 }
         ) {
 
             FormLabel(
                 text =
-                    if (
-                        selectedType ==
-                        "Deadline"
-                    ) {
-                        "First reminder date"
-                    } else {
-                        "Date"
+                    when (selectedType) {
+                        "Event" ->
+                            "Event date"
+
+                        "Deadline" ->
+                            "Reminder schedule date"
+
+                        "Task" ->
+                            "Task date"
+
+                        else ->
+                            "Reminder date"
                     }
             )
 
@@ -433,13 +443,18 @@ fun AddReminderScreen(
 
             FormLabel(
                 text =
-                    if (
-                        selectedType ==
-                        "Deadline"
-                    ) {
-                        "First reminder time"
-                    } else {
-                        "Time"
+                    when (selectedType) {
+                        "Event" ->
+                            "Event time"
+
+                        "Deadline" ->
+                            "Reminder schedule time"
+
+                        "Task" ->
+                            "Task time"
+
+                        else ->
+                            "Reminder time"
                     }
             )
 

@@ -329,25 +329,35 @@ fun EditReminderScreen(
             title =
                 "Schedule",
             subtitle =
-                if (
-                    selectedType ==
-                    "Deadline"
-                ) {
-                    "Manage the next reminder and final deadline."
-                } else {
-                    "Update when this reminder should happen."
+                when (selectedType) {
+                    "Event" ->
+                        "Update the actual date and time of the event."
+
+                    "Deadline" ->
+                        "Update the reminder schedule and the actual final deadline."
+
+                    "Task" ->
+                        "Update when the task is due."
+
+                    else ->
+                        "Update when this reminder is scheduled."
                 }
         ) {
 
             FormLabel(
                 text =
-                    if (
-                        selectedType ==
-                        "Deadline"
-                    ) {
-                        "Next reminder date"
-                    } else {
-                        "Date"
+                    when (selectedType) {
+                        "Event" ->
+                            "Event date"
+
+                        "Deadline" ->
+                            "Reminder schedule date"
+
+                        "Task" ->
+                            "Task date"
+
+                        else ->
+                            "Reminder date"
                     }
             )
 
@@ -391,13 +401,18 @@ fun EditReminderScreen(
 
             FormLabel(
                 text =
-                    if (
-                        selectedType ==
-                        "Deadline"
-                    ) {
-                        "Next reminder time"
-                    } else {
-                        "Time"
+                    when (selectedType) {
+                        "Event" ->
+                            "Event time"
+
+                        "Deadline" ->
+                            "Reminder schedule time"
+
+                        "Task" ->
+                            "Task time"
+
+                        else ->
+                            "Reminder time"
                     }
             )
 
@@ -461,7 +476,7 @@ fun EditReminderScreen(
 
                 Text(
                     text =
-                        "The dashboard will eventually use this date to show how much time remains.",
+                        "This is the actual date and time the work must be completed.",
                     style =
                         MaterialTheme
                             .typography

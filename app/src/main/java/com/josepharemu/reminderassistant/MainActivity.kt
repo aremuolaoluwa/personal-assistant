@@ -70,6 +70,7 @@ import com.josepharemu.reminderassistant.ui.theme.PersonalReminderAssistantTheme
 import com.josepharemu.reminderassistant.ui.theme.SuccessGreen
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -1534,6 +1535,60 @@ fun DashboardReminderCard(
             )
         }
 
+    val nextAlertDateTime =
+        nextScheduledAlertDateTime(
+            reminder
+        )
+
+    val deadlineOccurrenceDiffers =
+        isDeadline &&
+                (
+                    reminder.date !=
+                            reminder.deadlineDate ||
+                            reminder.time !=
+                            reminder.deadlineTime
+                    )
+
+    val showOccurrence =
+        !isDeadline ||
+                recurring ||
+                deadlineOccurrenceDiffers
+
+    val occurrenceLabel =
+        when {
+            isDeadline && recurring ->
+                "Next recurring reminder"
+
+            isDeadline ->
+                "Reminder schedule"
+
+            reminder.type.equals(
+                "Event",
+                ignoreCase = true
+            ) ->
+                if (recurring) {
+                    "Next event"
+                } else {
+                    "Event"
+                }
+
+            reminder.type.equals(
+                "Task",
+                ignoreCase = true
+            ) ->
+                if (recurring) {
+                    "Next task"
+                } else {
+                    "Task"
+                }
+
+            recurring ->
+                "Next occurrence"
+
+            else ->
+                "Scheduled for"
+        }
+
     ElevatedCard(
 
         modifier =
@@ -1639,47 +1694,50 @@ fun DashboardReminderCard(
                 )
             }
 
-            Spacer(
-                modifier =
-                    Modifier.height(
-                        14.dp
-                    )
-            )
+            if (showOccurrence) {
 
-            Text(
-                text =
-                    "Next reminder",
+                Spacer(
+                    modifier =
+                        Modifier.height(
+                            14.dp
+                        )
+                )
 
-                style =
-                    MaterialTheme
-                        .typography
-                        .labelLarge,
+                Text(
+                    text =
+                        occurrenceLabel,
 
-                color =
-                    MaterialTheme
-                        .colorScheme
-                        .onSurfaceVariant
-            )
+                    style =
+                        MaterialTheme
+                            .typography
+                            .labelLarge,
 
-            Spacer(
-                modifier =
-                    Modifier.height(
-                        2.dp
-                    )
-            )
+                    color =
+                        MaterialTheme
+                            .colorScheme
+                            .onSurfaceVariant
+                )
 
-            Text(
-                text =
-                    "${relativeReminderDateLabel(reminder.date)} • ${reminder.time}",
+                Spacer(
+                    modifier =
+                        Modifier.height(
+                            2.dp
+                        )
+                )
 
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodyLarge,
+                Text(
+                    text =
+                        "${relativeReminderDateLabel(reminder.date)} • ${reminder.time}",
 
-                fontWeight =
-                    FontWeight.SemiBold
-            )
+                    style =
+                        MaterialTheme
+                            .typography
+                            .bodyLarge,
+
+                    fontWeight =
+                        FontWeight.SemiBold
+                )
+            }
 
             if (isDeadline) {
 
@@ -1838,6 +1896,69 @@ fun DashboardReminderCard(
                     }
                 }
             }
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        14.dp
+                    )
+            )
+
+            Text(
+                text =
+                    "Next alert",
+
+                style =
+                    MaterialTheme
+                        .typography
+                        .labelLarge,
+
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurfaceVariant
+            )
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        2.dp
+                    )
+            )
+
+            Text(
+                text =
+                    if (
+                        nextAlertDateTime != null
+                    ) {
+                        formatAlertDateTime(
+                            nextAlertDateTime
+                        )
+                    } else {
+                        "No future alert scheduled"
+                    },
+
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyLarge,
+
+                fontWeight =
+                    FontWeight.SemiBold,
+
+                color =
+                    if (
+                        nextAlertDateTime != null
+                    ) {
+                        MaterialTheme
+                            .colorScheme
+                            .onSurface
+                    } else {
+                        MaterialTheme
+                            .colorScheme
+                            .onSurfaceVariant
+                    }
+            )
 
             Spacer(
                 modifier =
@@ -3449,6 +3570,130 @@ private fun effectiveDueDate(
     return parseReminderDate(
         reminder.date
     )
+}
+
+private fun nextScheduledAlertDateTime(
+    reminder: Reminder
+): LocalDateTime? {
+
+    val eventDate =
+        parseReminderDate(
+            reminder.date
+        ) ?: return null
+
+    val eventTime =
+        try {
+
+            LocalTime.parse(
+                reminder.time,
+                DateTimeFormatter
+                    .ofPattern(
+                        "HH:mm"
+                    )
+            )
+
+        } catch (
+            exception: Exception
+        ) {
+
+            return null
+        }
+
+    val eventDateTime =
+        LocalDateTime.of(
+            eventDate,
+            eventTime
+        )
+
+    val now =
+        LocalDateTime.now()
+
+    return parseReminderTimings(
+        reminder.reminderTiming
+    )
+        .map { timing ->
+
+            when (timing) {
+
+                "10 minutes before" ->
+                    eventDateTime
+                        .minusMinutes(
+                            10
+                        )
+
+                "30 minutes before" ->
+                    eventDateTime
+                        .minusMinutes(
+                            30
+                        )
+
+                "1 hour before" ->
+                    eventDateTime
+                        .minusHours(
+                            1
+                        )
+
+                "2 hours before" ->
+                    eventDateTime
+                        .minusHours(
+                            2
+                        )
+
+                "1 day before" ->
+                    eventDateTime
+                        .minusDays(
+                            1
+                        )
+
+                "3 days before" ->
+                    eventDateTime
+                        .minusDays(
+                            3
+                        )
+
+                "1 week before" ->
+                    eventDateTime
+                        .minusWeeks(
+                            1
+                        )
+
+                else ->
+                    eventDateTime
+            }
+        }
+        .filter {
+            it.isAfter(
+                now
+            )
+        }
+        .minOrNull()
+}
+
+private fun formatAlertDateTime(
+    value: LocalDateTime
+): String {
+
+    val storedDate =
+        value
+            .toLocalDate()
+            .format(
+                DateTimeFormatter
+                    .ofPattern(
+                        "dd/MM/yyyy"
+                    )
+            )
+
+    val time =
+        value
+            .toLocalTime()
+            .format(
+                DateTimeFormatter
+                    .ofPattern(
+                        "HH:mm"
+                    )
+            )
+
+    return "${relativeReminderDateLabel(storedDate)} • $time"
 }
 
 private fun deadlineText(
