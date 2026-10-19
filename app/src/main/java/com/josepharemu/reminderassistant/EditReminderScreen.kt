@@ -195,6 +195,14 @@ fun EditReminderScreen(
                 )
             }
 
+    var followUpUntilCompleted
+            by remember(reminder.id) {
+
+                mutableStateOf(
+                    reminder.followUpUntilCompleted
+                )
+            }
+
     val calendar =
         Calendar.getInstance()
 
@@ -625,6 +633,11 @@ fun EditReminderScreen(
                     selectedRepeatRule =
                         it
 
+                    if (it != "None") {
+                        followUpUntilCompleted =
+                            false
+                    }
+
                     if (
                         it == "None"
                     ) {
@@ -770,6 +783,26 @@ fun EditReminderScreen(
                     }
                 )
             }
+
+            Spacer(
+                modifier =
+                    Modifier.height(22.dp)
+            )
+
+            FollowUpUntilCompletedToggle(
+                enabled =
+                    followUpUntilCompleted,
+                available =
+                    !ReminderScheduler.isRecurring(
+                        selectedRepeatRule
+                    ),
+                priority =
+                    selectedPriority,
+                onEnabledChange = {
+                    followUpUntilCompleted =
+                        it
+                }
+            )
         }
 
         Spacer(
@@ -1050,7 +1083,10 @@ fun EditReminderScreen(
                                 escalationEnabled =
                                     selectedType ==
                                         "Deadline" &&
-                                        automaticEscalationEnabled
+                                        automaticEscalationEnabled,
+                                followUpUntilCompleted =
+                                    followUpUntilCompleted &&
+                                        !recurring
                             )
 
                         coroutineScope.launch {

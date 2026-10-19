@@ -47,6 +47,24 @@ object ReminderScheduler {
     )
 
     private const val RECURRENCE_CODE = 90
+    private const val FOLLOW_UP_CODE = 95
+
+    private fun getFollowUpDelayMinutes(
+        priority: String
+    ): Long {
+
+        return when (priority) {
+
+            "Critical" ->
+                30L
+
+            "Important" ->
+                60L
+
+            else ->
+                120L
+        }
+    }
 
     fun scheduleReminder(
         context: Context,
@@ -199,6 +217,63 @@ object ReminderScheduler {
         }
 
         if (
+            reminder.followUpUntilCompleted &&
+            !isRecurring(reminder.repeatRule)
+        ) {
+
+            val followUpBaseDateTime =
+                if (
+                    reminder.type.equals(
+                        "Deadline",
+                        ignoreCase = true
+                    )
+                ) {
+                    parseDeadlineDateTime(reminder)
+                        ?: eventDateTime
+                } else {
+                    eventDateTime
+                }
+
+            val now =
+                LocalDateTime.now()
+
+            val followUpDelayMinutes =
+                getFollowUpDelayMinutes(
+                    reminder.priority
+                )
+
+            val firstFollowUpDateTime =
+                if (
+                    followUpBaseDateTime.isAfter(now)
+                ) {
+                    followUpBaseDateTime.plusMinutes(
+                        followUpDelayMinutes
+                    )
+                } else {
+                    now.plusMinutes(
+                        followUpDelayMinutes
+                    )
+                }
+
+            val followUpTriggerTime =
+                firstFollowUpDateTime
+                    .atZone(
+                        ZoneId.systemDefault()
+                    )
+                    .toInstant()
+                    .toEpochMilli()
+
+            scheduleFollowUpAlarm(
+                context = context,
+                reminderId = reminder.id,
+                triggerTime = followUpTriggerTime
+            )
+
+            scheduledAtLeastOneNotification =
+                true
+        }
+
+        if (
             isRecurring(reminder.repeatRule) &&
             hasNextOccurrence(reminder)
         ) {
@@ -285,6 +360,16 @@ object ReminderScheduler {
                 putExtra(
                     "OCCURRENCE_DATE",
                     reminder.date
+                )
+
+                putExtra(
+                    "FOLLOW_UP_ENABLED",
+                    reminder.followUpUntilCompleted
+                )
+
+                putExtra(
+                    "REMINDER_PRIORITY",
+                    reminder.priority
                 )
             }
 
@@ -373,6 +458,16 @@ object ReminderScheduler {
                     "OCCURRENCE_DATE",
                     reminder.deadlineDate
                 )
+
+                putExtra(
+                    "FOLLOW_UP_ENABLED",
+                    reminder.followUpUntilCompleted
+                )
+
+                putExtra(
+                    "REMINDER_PRIORITY",
+                    reminder.priority
+                )
             }
 
         val pendingIntent =
@@ -425,6 +520,77 @@ object ReminderScheduler {
                     "At time of event"
                 )
         }
+    }
+
+    private fun scheduleFollowUpAlarm(
+        context: Context,
+        reminderId: Int,
+        triggerTime: Long
+    ) {
+
+        val followUpAlarmId =
+            createFollowUpNotificationId(
+                reminderId
+            )
+
+        val intent =
+            Intent(
+                context,
+                FollowUpReceiver::class.java
+            ).apply {
+
+                putExtra(
+                    "REMINDER_ID",
+                    reminderId
+                )
+            }
+
+        val pendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                followUpAlarmId,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                    PendingIntent.FLAG_IMMUTABLE
+            )
+
+        scheduleAlarm(
+            context = context,
+            triggerTime = triggerTime,
+            pendingIntent = pendingIntent
+        )
+    }
+
+    fun scheduleNextFollowUp(
+        context: Context,
+        reminder: Reminder
+    ): Boolean {
+
+        if (
+            reminder.isCompleted ||
+            !reminder.followUpUntilCompleted ||
+            isRecurring(reminder.repeatRule)
+        ) {
+            return false
+        }
+
+        val triggerTime =
+            System.currentTimeMillis() +
+                (
+                    getFollowUpDelayMinutes(
+                        reminder.priority
+                    ) *
+                        60 *
+                        1000L
+                )
+
+        scheduleFollowUpAlarm(
+            context = context,
+            reminderId = reminder.id,
+            triggerTime = triggerTime
+        )
+
+        return true
     }
 
     private fun scheduleRecurrenceAlarm(
@@ -1086,6 +1252,68 @@ object ReminderScheduler {
             )
         }
 
+        val followUpAlarmId =
+            createFollowUpNotificationId(
+                reminderId
+            )
+
+        val followUpIntent =
+            Intent(
+                context,
+                FollowUpReceiver::class.java
+            )
+
+        val followUpPendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                followUpAlarmId,
+                followUpIntent,
+                PendingIntent.FLAG_NO_CREATE or
+                    PendingIntent.FLAG_IMMUTABLE
+            )
+
+        if (followUpPendingIntent != null) {
+
+            alarmManager.cancel(
+                followUpPendingIntent
+            )
+
+            followUpPendingIntent.cancel()
+        }
+
+        val followUpSnoozeAlarmId =
+            createSnoozeAlarmRequestCode(
+                followUpAlarmId
+            )
+
+        val followUpSnoozeIntent =
+            Intent(
+                context,
+                ReminderReceiver::class.java
+            )
+
+        val followUpSnoozePendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                followUpSnoozeAlarmId,
+                followUpSnoozeIntent,
+                PendingIntent.FLAG_NO_CREATE or
+                    PendingIntent.FLAG_IMMUTABLE
+            )
+
+        if (followUpSnoozePendingIntent != null) {
+
+            alarmManager.cancel(
+                followUpSnoozePendingIntent
+            )
+
+            followUpSnoozePendingIntent.cancel()
+        }
+
+        notificationManager.cancel(
+            followUpAlarmId
+        )
+
         val recurrenceIntent =
             Intent(
                 context,
@@ -1167,6 +1395,14 @@ object ReminderScheduler {
 
         return reminderId * 100 +
             timingCode
+    }
+
+    fun createFollowUpNotificationId(
+        reminderId: Int
+    ): Int {
+
+        return reminderId * 100 +
+            FOLLOW_UP_CODE
     }
 
     private fun createRecurrenceAlarmId(

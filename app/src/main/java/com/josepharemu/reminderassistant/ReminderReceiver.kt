@@ -51,12 +51,23 @@ class ReminderReceiver : BroadcastReceiver() {
                 "OCCURRENCE_DATE"
             )
 
+        val followUpEnabled =
+            intent.getBooleanExtra(
+                "FOLLOW_UP_ENABLED",
+                false
+            )
+
+        val priority =
+            intent.getStringExtra(
+                "REMINDER_PRIORITY"
+            ) ?: "Normal"
+
         val recurring =
             ReminderScheduler.isRecurring(
                 repeatRule
             )
 
-        createNotificationChannel(
+        ensureNotificationChannels(
             context
         )
 
@@ -168,6 +179,16 @@ class ReminderReceiver : BroadcastReceiver() {
                     "OCCURRENCE_DATE",
                     occurrenceDate
                 )
+
+                putExtra(
+                    "FOLLOW_UP_ENABLED",
+                    followUpEnabled
+                )
+
+                putExtra(
+                    "REMINDER_PRIORITY",
+                    priority
+                )
             }
 
         val snoozePendingIntent =
@@ -179,17 +200,50 @@ class ReminderReceiver : BroadcastReceiver() {
                         PendingIntent.FLAG_IMMUTABLE
             )
 
-        val doneButtonText =
-            if (recurring) {
-                "Done for today"
-            } else {
-                "Done"
+        val stillWorkingIntent =
+            Intent(
+                context,
+                StillWorkingReceiver::class.java
+            ).apply {
+
+                putExtra(
+                    "REMINDER_ID",
+                    reminderId
+                )
+
+                putExtra(
+                    "NOTIFICATION_ID",
+                    notificationId
+                )
             }
 
-        val notification =
+        val stillWorkingPendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                notificationId * 10 + 3,
+                stillWorkingIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                    PendingIntent.FLAG_IMMUTABLE
+            )
+
+        val doneButtonText =
+            when {
+                recurring ->
+                    "Done for today"
+
+                followUpEnabled ->
+                    "Completed"
+
+                else ->
+                    "Done"
+            }
+
+        val notificationBuilder =
             NotificationCompat.Builder(
                 context,
-                CHANNEL_ID
+                channelIdForPriority(
+                    priority
+                )
             )
                 .setSmallIcon(
                     android.R.drawable.ic_dialog_info
@@ -206,7 +260,12 @@ class ReminderReceiver : BroadcastReceiver() {
                         .bigText(message)
                 )
                 .setPriority(
-                    NotificationCompat.PRIORITY_HIGH
+                    compatPriorityForPriority(
+                        priority
+                    )
+                )
+                .setCategory(
+                    NotificationCompat.CATEGORY_REMINDER
                 )
                 .setContentIntent(
                     openAppPendingIntent
@@ -216,13 +275,28 @@ class ReminderReceiver : BroadcastReceiver() {
                     doneButtonText,
                     donePendingIntent
                 )
-                .addAction(
-                    0,
-                    "Snooze 10 min",
-                    snoozePendingIntent
-                )
                 .setAutoCancel(true)
-                .build()
+
+        if (
+            followUpEnabled &&
+            !recurring
+        ) {
+
+            notificationBuilder.addAction(
+                0,
+                "Still working",
+                stillWorkingPendingIntent
+            )
+        }
+
+        notificationBuilder.addAction(
+            0,
+            "Snooze 10 min",
+            snoozePendingIntent
+        )
+
+        val notification =
+            notificationBuilder.build()
 
         val notificationManager =
             context.getSystemService(
@@ -235,41 +309,110 @@ class ReminderReceiver : BroadcastReceiver() {
         )
     }
 
-    private fun createNotificationChannel(
-        context: Context
-    ) {
-
-        if (
-            Build.VERSION.SDK_INT >=
-            Build.VERSION_CODES.O
-        ) {
-
-            val channel =
-                NotificationChannel(
-                    CHANNEL_ID,
-                    "Reminder Notifications",
-                    NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-
-                    description =
-                        "Notifications for scheduled reminders"
-                }
-
-            val notificationManager =
-                context.getSystemService(
-                    Context.NOTIFICATION_SERVICE
-                ) as NotificationManager
-
-            notificationManager
-                .createNotificationChannel(
-                    channel
-                )
-        }
-    }
-
     companion object {
 
         const val CHANNEL_ID =
             "personal_reminder_channel"
+
+        private const val NORMAL_CHANNEL_ID =
+            "personal_reminder_normal_v2"
+
+        private const val IMPORTANT_CHANNEL_ID =
+            "personal_reminder_important_v2"
+
+        private const val CRITICAL_CHANNEL_ID =
+            "personal_reminder_critical_v2"
+
+        fun channelIdForPriority(
+            priority: String
+        ): String {
+
+            return when (priority) {
+
+                "Critical" ->
+                    CRITICAL_CHANNEL_ID
+
+                "Important" ->
+                    IMPORTANT_CHANNEL_ID
+
+                else ->
+                    NORMAL_CHANNEL_ID
+            }
+        }
+
+        fun compatPriorityForPriority(
+            priority: String
+        ): Int {
+
+            return when (priority) {
+
+                "Critical" ->
+                    NotificationCompat.PRIORITY_MAX
+
+                "Important" ->
+                    NotificationCompat.PRIORITY_HIGH
+
+                else ->
+                    NotificationCompat.PRIORITY_DEFAULT
+            }
+        }
+
+        fun ensureNotificationChannels(
+            context: Context
+        ) {
+
+            if (
+                Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.O
+            ) {
+
+                val normalChannel =
+                    NotificationChannel(
+                        NORMAL_CHANNEL_ID,
+                        "Normal reminders",
+                        NotificationManager.IMPORTANCE_DEFAULT
+                    ).apply {
+
+                        description =
+                            "Standard reminders and follow-ups"
+                    }
+
+                val importantChannel =
+                    NotificationChannel(
+                        IMPORTANT_CHANNEL_ID,
+                        "Important reminders",
+                        NotificationManager.IMPORTANCE_HIGH
+                    ).apply {
+
+                        description =
+                            "Important reminders that need stronger attention"
+                    }
+
+                val criticalChannel =
+                    NotificationChannel(
+                        CRITICAL_CHANNEL_ID,
+                        "Critical reminders",
+                        NotificationManager.IMPORTANCE_HIGH
+                    ).apply {
+
+                        description =
+                            "Critical reminders and urgent follow-ups"
+                    }
+
+                val notificationManager =
+                    context.getSystemService(
+                        Context.NOTIFICATION_SERVICE
+                    ) as NotificationManager
+
+                notificationManager
+                    .createNotificationChannels(
+                        listOf(
+                            normalChannel,
+                            importantChannel,
+                            criticalChannel
+                        )
+                    )
+            }
+        }
     }
 }

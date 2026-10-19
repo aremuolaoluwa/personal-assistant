@@ -208,6 +208,10 @@ fun AddReminderScreen(
         mutableStateOf(false)
     }
 
+    var followUpUntilCompleted by remember {
+        mutableStateOf(false)
+    }
+
     val calendar =
         Calendar.getInstance()
 
@@ -665,6 +669,11 @@ fun AddReminderScreen(
                     selectedRepeatRule =
                         it
 
+                    if (it != "None") {
+                        followUpUntilCompleted =
+                            false
+                    }
+
                     if (
                         it == "None"
                     ) {
@@ -830,6 +839,26 @@ fun AddReminderScreen(
                     }
                 )
             }
+
+            Spacer(
+                modifier =
+                    Modifier.height(22.dp)
+            )
+
+            FollowUpUntilCompletedToggle(
+                enabled =
+                    followUpUntilCompleted,
+                available =
+                    !ReminderScheduler.isRecurring(
+                        selectedRepeatRule
+                    ),
+                priority =
+                    selectedPriority,
+                onEnabledChange = {
+                    followUpUntilCompleted =
+                        it
+                }
+            )
         }
 
         Spacer(
@@ -1135,7 +1164,10 @@ fun AddReminderScreen(
                                 escalationEnabled =
                                     selectedType ==
                                         "Deadline" &&
-                                        automaticEscalationEnabled
+                                        automaticEscalationEnabled,
+                                followUpUntilCompleted =
+                                    followUpUntilCompleted &&
+                                        !recurring
                             )
 
                         coroutineScope.launch {
@@ -1471,6 +1503,92 @@ fun AutomaticEscalationToggle(
         )
     }
 }
+
+@Composable
+fun FollowUpUntilCompletedToggle(
+    enabled: Boolean,
+    available: Boolean,
+    priority: String,
+    onEnabledChange: (Boolean) -> Unit
+) {
+
+    val followUpDescription =
+        when (priority) {
+
+            "Critical" ->
+                "Critical: follow up every 30 minutes after the scheduled time — or final deadline — until completed."
+
+            "Important" ->
+                "Important: follow up every hour after the scheduled time — or final deadline — until completed."
+
+            else ->
+                "Normal: follow up every 2 hours after the scheduled time — or final deadline — until completed."
+        }
+
+    Row(
+        modifier =
+            Modifier.fillMaxWidth(),
+        verticalAlignment =
+            Alignment.CenterVertically
+    ) {
+
+        Column(
+            modifier =
+                Modifier.weight(1f)
+        ) {
+
+            Text(
+                text =
+                    "Follow up until completed",
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleMedium
+            )
+
+            Spacer(
+                modifier =
+                    Modifier.height(4.dp)
+            )
+
+            Text(
+                text =
+                    if (available) {
+                        followUpDescription
+                    } else {
+                        "Available for one-off reminders. Repeating reminders already use Done for today."
+                    },
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyMedium,
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurfaceVariant
+            )
+        }
+
+        Spacer(
+            modifier =
+                Modifier.size(14.dp)
+        )
+
+        Switch(
+            checked =
+                enabled && available,
+            onCheckedChange =
+                if (available) {
+                    onEnabledChange
+                } else {
+                    null
+                },
+            enabled =
+                available
+        )
+    }
+}
+
 
 @Composable
 fun SimpleDropdown(

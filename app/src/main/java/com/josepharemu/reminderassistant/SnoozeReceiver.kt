@@ -47,6 +47,17 @@ class SnoozeReceiver : BroadcastReceiver() {
                 "OCCURRENCE_DATE"
             )
 
+        val followUpEnabled =
+            intent.getBooleanExtra(
+                "FOLLOW_UP_ENABLED",
+                false
+            )
+
+        val priority =
+            intent.getStringExtra(
+                "REMINDER_PRIORITY"
+            ) ?: "Normal"
+
         val notificationManager =
             context.getSystemService(
                 Context.NOTIFICATION_SERVICE
@@ -96,6 +107,16 @@ class SnoozeReceiver : BroadcastReceiver() {
                 putExtra(
                     "OCCURRENCE_DATE",
                     occurrenceDate
+                )
+
+                putExtra(
+                    "FOLLOW_UP_ENABLED",
+                    followUpEnabled
+                )
+
+                putExtra(
+                    "REMINDER_PRIORITY",
+                    priority
                 )
             }
 
