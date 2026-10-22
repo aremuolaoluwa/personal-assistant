@@ -67,6 +67,22 @@ class DoneForTodayReceiver : BroadcastReceiver() {
                     return@launch
                 }
 
+                database
+                    .reminderActionDao()
+                    .insertAction(
+                        ReminderAction(
+                            reminderId =
+                                reminderId,
+                            actionType =
+                                "DONE_TODAY",
+                            occurrenceDate =
+                                occurrenceDate
+                                    ?: currentReminder.date,
+                            details =
+                                "Done for today"
+                        )
+                    )
+
                 /*
                  * Cancel all alarms first.
                  *

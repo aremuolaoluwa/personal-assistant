@@ -44,6 +44,39 @@ class DoneReceiver : BroadcastReceiver() {
                             context
                         )
 
+                val reminder =
+                    database
+                        .reminderDao()
+                        .getReminderById(
+                            reminderId
+                        ) ?: return@launch
+
+                val completionLabel =
+                    when (reminder.type) {
+
+                        "Task",
+                        "Deadline" ->
+                            "Completed"
+
+                        else ->
+                            "Done"
+                    }
+
+                database
+                    .reminderActionDao()
+                    .insertAction(
+                        ReminderAction(
+                            reminderId =
+                                reminderId,
+                            actionType =
+                                "COMPLETED",
+                            occurrenceDate =
+                                reminder.date,
+                            details =
+                                completionLabel
+                        )
+                    )
+
                 /*
                  * Mark the whole reminder series
                  * as completed.

@@ -69,9 +69,11 @@ import com.josepharemu.reminderassistant.ui.theme.ImportantAmber
 import com.josepharemu.reminderassistant.ui.theme.PersonalReminderAssistantTheme
 import com.josepharemu.reminderassistant.ui.theme.SuccessGreen
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -156,6 +158,15 @@ fun PersonalReminderApp() {
                         emptyList()
                 )
 
+    val reminderActions
+            by database
+                .reminderActionDao()
+                .getAllActions()
+                .collectAsState(
+                    initial =
+                        emptyList()
+                )
+
     val destinations =
         listOf(
 
@@ -207,6 +218,21 @@ fun PersonalReminderApp() {
         ) {
 
             coroutineScope.launch {
+
+                database
+                    .reminderActionDao()
+                    .insertAction(
+                        ReminderAction(
+                            reminderId =
+                                reminder.id,
+                            actionType =
+                                "DONE_TODAY",
+                            occurrenceDate =
+                                reminder.date,
+                            details =
+                                "Done for today"
+                        )
+                    )
 
                 ReminderScheduler
                     .cancelReminder(
@@ -273,6 +299,32 @@ fun PersonalReminderApp() {
                 )
 
             coroutineScope.launch {
+
+                val completionLabel =
+                    when (reminder.type) {
+
+                        "Task",
+                        "Deadline" ->
+                            "Completed"
+
+                        else ->
+                            "Done"
+                    }
+
+                database
+                    .reminderActionDao()
+                    .insertAction(
+                        ReminderAction(
+                            reminderId =
+                                reminder.id,
+                            actionType =
+                                "COMPLETED",
+                            occurrenceDate =
+                                reminder.date,
+                            details =
+                                completionLabel
+                        )
+                    )
 
                 database
                     .reminderDao()
@@ -366,6 +418,21 @@ fun PersonalReminderApp() {
                 .reminderDao()
                 .updateReminder(
                     restoredReminder
+                )
+
+            database
+                .reminderActionDao()
+                .insertAction(
+                    ReminderAction(
+                        reminderId =
+                            restoredReminder.id,
+                        actionType =
+                            "RESTORED",
+                        occurrenceDate =
+                            restoredReminder.date,
+                        details =
+                            "Restored to active reminders"
+                    )
                 )
 
             ReminderScheduler
@@ -600,6 +667,13 @@ fun PersonalReminderApp() {
 
                     reminders =
                         completedReminders,
+
+                    actions =
+                        reminderActions,
+
+                    allReminders =
+                        activeReminders +
+                            completedReminders,
 
                     onRestore = {
                             reminder ->
@@ -2944,10 +3018,26 @@ fun ScheduleScreen(
 @Composable
 fun HistoryScreen(
     reminders: List<Reminder>,
+    actions: List<ReminderAction>,
+    allReminders: List<Reminder>,
     onRestore: (Reminder) -> Unit,
     onDelete: (Reminder) -> Unit,
     modifier: Modifier = Modifier
 ) {
+
+    val reminderLookup =
+        allReminders.associateBy {
+            it.id
+        }
+
+    val visibleActions =
+        actions
+            .filter {
+                reminderLookup.containsKey(
+                    it.reminderId
+                )
+            }
+            .take(50)
 
     LazyColumn(
 
@@ -2986,7 +3076,7 @@ fun HistoryScreen(
 
                 Text(
                     text =
-                        "Completed reminders and commitments.",
+                        "Completed reminders and the actions you took along the way.",
 
                     style =
                         MaterialTheme
@@ -3001,9 +3091,84 @@ fun HistoryScreen(
             }
         }
 
-        if (
-            reminders.isEmpty()
-        ) {
+        item {
+
+            DashboardSectionHeader(
+                title =
+                    "Recent activity",
+                subtitle =
+                    if (visibleActions.isEmpty()) {
+                        "Your reminder activity will appear here"
+                    } else {
+                        "${visibleActions.size} recent action" +
+                            if (visibleActions.size == 1) {
+                                ""
+                            } else {
+                                "s"
+                            }
+                    }
+            )
+        }
+
+        if (visibleActions.isEmpty()) {
+
+            item {
+
+                DashboardEmptyCard(
+                    message =
+                        "No reminder activity recorded yet."
+                )
+            }
+
+        } else {
+
+            items(
+                items =
+                    visibleActions,
+                key = {
+                    "action_${it.id}"
+                }
+            ) { action ->
+
+                val reminder =
+                    reminderLookup[
+                        action.reminderId
+                    ]
+
+                if (reminder != null) {
+
+                    ReminderActionHistoryCard(
+                        action =
+                            action,
+                        reminder =
+                            reminder
+                    )
+                }
+            }
+        }
+
+        item {
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        4.dp
+                    )
+            )
+
+            DashboardSectionHeader(
+                title =
+                    "Completed reminders",
+                subtitle =
+                    if (reminders.isEmpty()) {
+                        "Nothing completed yet"
+                    } else {
+                        "${reminders.size} completed"
+                    }
+            )
+        }
+
+        if (reminders.isEmpty()) {
 
             item {
 
@@ -3018,13 +3183,10 @@ fun HistoryScreen(
             items(
                 items =
                     reminders,
-
                 key = {
-                    it.id
+                    "completed_${it.id}"
                 }
-
-            ) {
-                    reminder ->
+            ) { reminder ->
 
                 ElevatedCard(
 
@@ -3100,6 +3262,40 @@ fun HistoryScreen(
                                             .colorScheme
                                             .onSurfaceVariant
                                 )
+
+                                if (
+                                    reminder.snoozeCount > 0
+                                ) {
+
+                                    Spacer(
+                                        modifier =
+                                            Modifier.height(
+                                                4.dp
+                                            )
+                                    )
+
+                                    Text(
+                                        text =
+                                            "Snoozed ${reminder.snoozeCount} time" +
+                                                if (
+                                                    reminder.snoozeCount == 1
+                                                ) {
+                                                    ""
+                                                } else {
+                                                    "s"
+                                                },
+
+                                        style =
+                                            MaterialTheme
+                                                .typography
+                                                .bodyMedium,
+
+                                        color =
+                                            MaterialTheme
+                                                .colorScheme
+                                                .onSurfaceVariant
+                                    )
+                                }
                             }
                         }
 
@@ -3163,6 +3359,272 @@ fun HistoryScreen(
             }
         }
     }
+}
+
+@Composable
+fun ReminderActionHistoryCard(
+    action: ReminderAction,
+    reminder: Reminder
+) {
+
+    val icon =
+        when (action.actionType) {
+
+            "NOTIFIED",
+            "FOLLOW_UP_SENT" ->
+                Icons.Outlined.NotificationsActive
+
+            "SNOOZED" ->
+                Icons.Outlined.Schedule
+
+            "COMPLETED",
+            "DONE_TODAY" ->
+                Icons.Outlined.CheckCircle
+
+            "RESTORED" ->
+                Icons.Outlined.History
+
+            else ->
+                Icons.Outlined.WarningAmber
+        }
+
+    val tint =
+        when (action.actionType) {
+
+            "COMPLETED",
+            "DONE_TODAY" ->
+                SuccessGreen
+
+            "SNOOZED",
+            "KEPT_ACTIVE" ->
+                ImportantAmber
+
+            else ->
+                MaterialTheme
+                    .colorScheme
+                    .primary
+        }
+
+    ElevatedCard(
+        modifier =
+            Modifier.fillMaxWidth(),
+        shape =
+            RoundedCornerShape(
+                18.dp
+            )
+    ) {
+
+        Row(
+            modifier =
+                Modifier.padding(
+                    16.dp
+                ),
+            verticalAlignment =
+                Alignment.Top
+        ) {
+
+            Surface(
+                shape =
+                    CircleShape,
+                color =
+                    tint.copy(
+                        alpha = 0.12f
+                    )
+            ) {
+
+                Icon(
+                    imageVector =
+                        icon,
+                    contentDescription =
+                        null,
+                    tint =
+                        tint,
+                    modifier =
+                        Modifier.padding(
+                            9.dp
+                        )
+                )
+            }
+
+            Spacer(
+                modifier =
+                    Modifier.size(
+                        12.dp
+                    )
+            )
+
+            Column(
+                modifier =
+                    Modifier.weight(
+                        1f
+                    )
+            ) {
+
+                Text(
+                    text =
+                        reminder.title,
+                    style =
+                        MaterialTheme
+                            .typography
+                            .titleMedium,
+                    maxLines =
+                        2,
+                    overflow =
+                        TextOverflow.Ellipsis
+                )
+
+                Spacer(
+                    modifier =
+                        Modifier.height(
+                            3.dp
+                        )
+                )
+
+                Text(
+                    text =
+                        reminderActionLabel(
+                            action
+                        ),
+                    style =
+                        MaterialTheme
+                            .typography
+                            .bodyLarge,
+                    fontWeight =
+                        FontWeight.SemiBold,
+                    color =
+                        tint
+                )
+
+                reminderActionDetails(
+                    action
+                )?.let { details ->
+
+                    Spacer(
+                        modifier =
+                            Modifier.height(
+                                3.dp
+                            )
+                    )
+
+                    Text(
+                        text =
+                            details,
+                        style =
+                            MaterialTheme
+                                .typography
+                                .bodyMedium,
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurfaceVariant
+                    )
+                }
+
+                Spacer(
+                    modifier =
+                        Modifier.height(
+                            5.dp
+                        )
+                )
+
+                Text(
+                    text =
+                        formatReminderActionTime(
+                            action.timestamp
+                        ),
+                    style =
+                        MaterialTheme
+                            .typography
+                            .bodyMedium,
+                    color =
+                        MaterialTheme
+                            .colorScheme
+                            .onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+private fun reminderActionLabel(
+    action: ReminderAction
+): String {
+
+    return when (action.actionType) {
+
+        "NOTIFIED" ->
+            "Notification sent"
+
+        "FOLLOW_UP_SENT" ->
+            "Follow-up sent"
+
+        "SNOOZED" ->
+            "Snoozed"
+
+        "KEPT_ACTIVE" ->
+            action.details
+                ?: "Kept active"
+
+        "COMPLETED" ->
+            action.details
+                ?: "Completed"
+
+        "DONE_TODAY" ->
+            "Done for today"
+
+        "RESTORED" ->
+            "Restored"
+
+        else ->
+            action.actionType
+                .replace(
+                    "_",
+                    " "
+                )
+                .lowercase(
+                    Locale.UK
+                )
+                .replaceFirstChar {
+                    it.uppercase()
+                }
+    }
+}
+
+private fun reminderActionDetails(
+    action: ReminderAction
+): String? {
+
+    return when (action.actionType) {
+
+        "KEPT_ACTIVE",
+        "COMPLETED" ->
+            null
+
+        else ->
+            action.details
+                ?.takeIf {
+                    it.isNotBlank()
+                }
+    }
+}
+
+private fun formatReminderActionTime(
+    timestamp: Long
+): String {
+
+    return Instant
+        .ofEpochMilli(
+            timestamp
+        )
+        .atZone(
+            ZoneId.systemDefault()
+        )
+        .format(
+            DateTimeFormatter.ofPattern(
+                "d MMM yyyy • HH:mm",
+                Locale.UK
+            )
+        )
 }
 
 @Composable

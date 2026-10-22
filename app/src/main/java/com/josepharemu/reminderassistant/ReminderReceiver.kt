@@ -11,6 +11,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class ReminderReceiver : BroadcastReceiver() {
 
@@ -385,6 +389,46 @@ class ReminderReceiver : BroadcastReceiver() {
             notificationId,
             notification
         )
+
+        val pendingResult =
+            goAsync()
+
+        val scope =
+            CoroutineScope(
+                SupervisorJob() +
+                    Dispatchers.IO
+            )
+
+        scope.launch {
+
+            try {
+
+                ReminderHistoryLogger.record(
+                    context =
+                        context,
+                    reminderId =
+                        reminderId,
+                    actionType =
+                        if (isFollowUp) {
+                            "FOLLOW_UP_SENT"
+                        } else {
+                            "NOTIFIED"
+                        },
+                    occurrenceDate =
+                        occurrenceDate,
+                    details =
+                        if (isFollowUp) {
+                            "Follow-up notification sent"
+                        } else {
+                            reminderTiming
+                        }
+                )
+
+            } finally {
+
+                pendingResult.finish()
+            }
+        }
     }
 
     companion object {

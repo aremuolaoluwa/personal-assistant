@@ -7,6 +7,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class SnoozeReceiver : BroadcastReceiver() {
 
@@ -160,9 +164,12 @@ class SnoozeReceiver : BroadcastReceiver() {
                         PendingIntent.FLAG_IMMUTABLE
             )
 
+        val snoozedAt =
+            System.currentTimeMillis()
+
         val triggerTime =
-            System.currentTimeMillis() +
-                    (10 * 60 * 1000L)
+            snoozedAt +
+                (10 * 60 * 1000L)
 
         val alarmManager =
             context.getSystemService(
@@ -200,6 +207,55 @@ class SnoozeReceiver : BroadcastReceiver() {
                 triggerTime,
                 pendingIntent
             )
+        }
+
+        val pendingResult =
+            goAsync()
+
+        val scope =
+            CoroutineScope(
+                SupervisorJob() +
+                    Dispatchers.IO
+            )
+
+        scope.launch {
+
+            try {
+
+                val database =
+                    ReminderDatabase
+                        .getDatabase(
+                            context
+                        )
+
+                database
+                    .reminderDao()
+                    .recordSnooze(
+                        reminderId =
+                            reminderId,
+                        timestamp =
+                            snoozedAt
+                    )
+
+                ReminderHistoryLogger.record(
+                    context =
+                        context,
+                    reminderId =
+                        reminderId,
+                    actionType =
+                        "SNOOZED",
+                    occurrenceDate =
+                        occurrenceDate,
+                    details =
+                        "Snoozed for 10 minutes",
+                    timestamp =
+                        snoozedAt
+                )
+
+            } finally {
+
+                pendingResult.finish()
+            }
         }
     }
 }

@@ -37,6 +37,19 @@ interface ReminderDao {
     @Query(
         """
         UPDATE reminders
+        SET snoozeCount = snoozeCount + 1,
+            lastSnoozedAt = :timestamp
+        WHERE id = :reminderId
+        """
+    )
+    suspend fun recordSnooze(
+        reminderId: Int,
+        timestamp: Long
+    )
+
+    @Query(
+        """
+        UPDATE reminders
         SET date = :newDate,
             repeatAnchorDate = :anchorDate
         WHERE id = :reminderId

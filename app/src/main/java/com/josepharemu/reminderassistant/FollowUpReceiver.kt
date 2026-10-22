@@ -341,6 +341,30 @@ class FollowUpReceiver : BroadcastReceiver() {
                     notification
                 )
 
+                database
+                    .reminderActionDao()
+                    .insertAction(
+                        ReminderAction(
+                            reminderId =
+                                reminder.id,
+                            actionType =
+                                "FOLLOW_UP_SENT",
+                            occurrenceDate =
+                                if (
+                                    reminder.type ==
+                                    "Deadline" &&
+                                    reminder.deadlineDate !=
+                                    "None"
+                                ) {
+                                    reminder.deadlineDate
+                                } else {
+                                    reminder.date
+                                },
+                            details =
+                                "Follow-up notification sent"
+                        )
+                    )
+
             } finally {
 
                 pendingResult.finish()
