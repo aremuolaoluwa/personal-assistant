@@ -97,6 +97,11 @@ class DoneReceiver : BroadcastReceiver() {
                         reminderId
                     )
 
+                UpcomingReminderWidgetUpdater
+                    .updateAll(
+                        context
+                    )
+
             } finally {
 
                 pendingResult.finish()

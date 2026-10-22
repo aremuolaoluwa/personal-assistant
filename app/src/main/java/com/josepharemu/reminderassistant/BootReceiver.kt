@@ -101,6 +101,11 @@ class BootReceiver : BroadcastReceiver() {
                     )
                 }
 
+                UpcomingReminderWidgetUpdater
+                    .updateAll(
+                        context
+                    )
+
             } catch (
                 exception: Exception
             ) {

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/upcoming_reminder_widget_background"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/widget_header"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="0.08"
+        android:text="UP NEXT"
+        android:textColor="#2457E6"
+        android:textSize="11sp" />
+
+    <TextView
+        android:id="@+id/widget_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif-medium"
+        android:maxLines="2"
+        android:text="Upcoming reminder"
+        android:textColor="#111827"
+        android:textSize="18sp" />
+
+    <TextView
+        android:id="@+id/widget_schedule"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="Today • 14:30"
+        android:textColor="#374151"
+        android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/widget_meta"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/upcoming_reminder_widget_pill"
+        android:fontFamily="sans-serif-medium"
+        android:paddingStart="9dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="9dp"
+        android:paddingBottom="4dp"
+        android:text="IMPORTANT • TASK"
+        android:textColor="#2457E6"
+        android:textSize="11sp" />
+
+    <TextView
+        android:id="@+id/widget_footer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="9dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="2 more active reminders • Tap to open"
+        android:textColor="#6B7280"
+        android:textSize="11sp" />
+
+</LinearLayout>

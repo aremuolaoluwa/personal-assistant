@@ -288,6 +288,11 @@ fun PersonalReminderApp() {
                             nextReminder
                         )
                 }
+
+                UpcomingReminderWidgetUpdater
+                    .updateAll(
+                        context
+                    )
             }
 
         } else {
@@ -334,6 +339,11 @@ fun PersonalReminderApp() {
                                 true
                         )
                     )
+
+                UpcomingReminderWidgetUpdater
+                    .updateAll(
+                        context
+                    )
             }
         }
     }
@@ -354,6 +364,11 @@ fun PersonalReminderApp() {
                 .reminderDao()
                 .deleteReminder(
                     reminder
+                )
+
+            UpcomingReminderWidgetUpdater
+                .updateAll(
+                    context
                 )
         }
     }
@@ -392,6 +407,11 @@ fun PersonalReminderApp() {
                 .scheduleReminder(
                     context,
                     oneOffReminder
+                )
+
+            UpcomingReminderWidgetUpdater
+                .updateAll(
+                    context
                 )
         }
     }
@@ -439,6 +459,11 @@ fun PersonalReminderApp() {
                 .scheduleReminder(
                     context,
                     restoredReminder
+                )
+
+            UpcomingReminderWidgetUpdater
+                .updateAll(
+                    context
                 )
         }
     }

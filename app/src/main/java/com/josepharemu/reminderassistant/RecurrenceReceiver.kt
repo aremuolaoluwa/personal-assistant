@@ -113,6 +113,11 @@ class RecurrenceReceiver : BroadcastReceiver() {
                         )
                 }
 
+                UpcomingReminderWidgetUpdater
+                    .updateAll(
+                        context
+                    )
+
             } finally {
 
                 pendingResult.finish()

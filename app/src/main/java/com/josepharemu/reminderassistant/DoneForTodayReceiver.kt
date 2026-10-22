@@ -143,6 +143,11 @@ class DoneForTodayReceiver : BroadcastReceiver() {
                             )
                         )
 
+                        UpcomingReminderWidgetUpdater
+                            .updateAll(
+                                context
+                            )
+
                         return@launch
                     }
 
@@ -183,6 +188,11 @@ class DoneForTodayReceiver : BroadcastReceiver() {
                             reminderToSchedule
                         )
                 }
+
+                UpcomingReminderWidgetUpdater
+                    .updateAll(
+                        context
+                    )
 
             } finally {
 

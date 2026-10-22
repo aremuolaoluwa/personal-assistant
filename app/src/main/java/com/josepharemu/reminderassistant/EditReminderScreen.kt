@@ -1110,6 +1110,11 @@ fun EditReminderScreen(
                                         updatedReminder
                                     )
 
+                            UpcomingReminderWidgetUpdater
+                                .updateAll(
+                                    context
+                                )
+
                             if (scheduled) {
 
                                 Toast.makeText(
